@@ -2,7 +2,7 @@ name: PyPI
 
 # Builds abi3 wheels + sdist for the `presidio-rs` Python package and publishes
 # to PyPI when a GitHub Release is published (or a v* tag is pushed).
-# Set the `PYPI_API_TOKEN` repository secret before publishing.
+# Publishing uses PyPI Trusted Publishing (OIDC) — no API token required.
 
 on:
   release:
@@ -13,10 +13,6 @@ on:
 
 permissions:
   contents: read
-
-defaults:
-  run:
-    working-directory: bindings/python
 
 jobs:
   build:
@@ -43,11 +39,11 @@ jobs:
           # abi3 wheel -> one wheel per platform works for all Python >= 3.8
           args: --release --out dist --manifest-path bindings/python/Cargo.toml
           manylinux: auto
-          working-directory: .
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-${{ matrix.platform.os }}-${{ matrix.platform.target }}
-          path: bindings/python/dist
+          path: dist
+          if-no-files-found: error
 
   sdist:
     name: sdist
@@ -59,11 +55,11 @@ jobs:
         with:
           command: sdist
           args: --out dist --manifest-path bindings/python/Cargo.toml
-          working-directory: .
       - uses: actions/upload-artifact@v4
         with:
           name: wheels-sdist
-          path: bindings/python/dist
+          path: dist
+          if-no-files-found: error
 
   publish:
     name: publish to PyPI

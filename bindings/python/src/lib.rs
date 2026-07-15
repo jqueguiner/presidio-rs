@@ -41,9 +41,9 @@ fn analyze<'py>(
     let ents = normalize_entities(entities);
     let results = engine.analyze(text, language, ents.as_deref(), score_threshold);
 
-    let list = PyList::empty_bound(py);
+    let list = PyList::empty(py);
     for r in results {
-        let d = PyDict::new_bound(py);
+        let d = PyDict::new(py);
         d.set_item("entity_type", &r.entity_type)?;
         d.set_item("start", r.start)?;
         d.set_item("end", r.end)?;

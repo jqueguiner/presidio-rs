@@ -71,17 +71,16 @@ jobs:
     needs: [build, sdist]
     if: github.event_name == 'release' || startsWith(github.ref, 'refs/tags/v')
     environment: pypi
+    permissions:
+      # Trusted Publishing (OIDC) — no PyPI API token needed.
+      id-token: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           pattern: wheels-*
           merge-multiple: true
           path: dist
-      - name: Publish
-        uses: PyO3/maturin-action@v1
-        env:
-          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+      - name: Publish to PyPI (Trusted Publishing)
+        uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          command: upload
-          args: --non-interactive --skip-existing dist/*
-          working-directory: .
+          skip-existing: true

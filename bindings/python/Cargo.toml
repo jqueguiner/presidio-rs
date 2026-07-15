@@ -1,0 +1,18 @@
+[package]
+name = "presidio-rs-python"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Python bindings for presidio-rust (PII detection & anonymization)"
+
+[lib]
+name = "presidio_rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+presidio-analyzer = { path = "../../crates/presidio-analyzer" }
+presidio-anonymizer = { path = "../../crates/presidio-anonymizer" }
+pyo3 = { version = "0.22", features = ["extension-module", "abi3-py38"] }
+serde_json = { workspace = true }

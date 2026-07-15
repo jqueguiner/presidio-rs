@@ -1,0 +1,17 @@
+/target
+**/*.rs.bk
+Cargo.lock.orig
+.DS_Store
+
+# Coverage
+lcov.info
+*.profraw
+*.profdata
+
+# Python / maturin
+bindings/python/dist/
+**/__pycache__/
+*.so
+*.pyd
+.pytest_cache/
+.venv/

@@ -1,0 +1,21 @@
+coverage:
+  precision: 2
+  round: down
+  status:
+    project:
+      default:
+        target: 95%
+        threshold: 1%
+    patch:
+      default:
+        target: 95%
+
+comment:
+  layout: "reach, diff, flags, files"
+  require_changes: false
+
+# The CLI is thin glue and the Python cdylib isn't Rust-coverage-instrumented;
+# the 95% gate applies to the two library crates.
+ignore:
+  - "crates/presidio-cli/**"
+  - "bindings/python/**"

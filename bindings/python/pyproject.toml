@@ -1,0 +1,29 @@
+[build-system]
+requires = ["maturin>=1.5,<2"]
+build-backend = "maturin"
+
+[project]
+name = "presidio-rs"
+description = "Rust-powered PII detection & anonymization (a port of Microsoft Presidio)"
+readme = "README.md"
+requires-python = ">=3.8"
+license = { text = "MIT" }
+authors = [{ name = "presidio-rust contributors" }]
+keywords = ["pii", "anonymization", "privacy", "presidio", "gdpr", "redaction"]
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Security",
+    "Topic :: Text Processing :: Linguistic",
+]
+dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/jqueguiner/presidio-rs"
+
+[tool.maturin]
+module-name = "presidio_rs"
+manifest-path = "Cargo.toml"
+features = ["pyo3/extension-module"]
+strip = true

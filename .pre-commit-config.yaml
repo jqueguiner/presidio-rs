@@ -1,0 +1,28 @@
+# Install once:  pip install pre-commit && pre-commit install
+# Requires:       cargo install cargo-llvm-cov && rustup component add llvm-tools-preview
+#
+# The `coverage-95` hook blocks any commit that drops analyzer+anonymizer line
+# coverage below 95%.
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --all -- --check
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: cargo-clippy
+        name: cargo clippy
+        entry: cargo clippy --all-targets -- -D warnings
+        language: system
+        types: [rust]
+        pass_filenames: false
+
+      - id: coverage-95
+        name: coverage >= 95%
+        entry: scripts/coverage.sh
+        language: script
+        types: [rust]
+        pass_filenames: false

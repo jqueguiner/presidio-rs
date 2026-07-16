@@ -4,6 +4,7 @@
 //! Port of `presidio_analyzer.AnalyzerEngine`.
 
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
 use regex::Regex;
 
@@ -42,9 +43,14 @@ pub struct AnalyzeOptions<'a> {
     pub ad_hoc_recognizers: Vec<&'a dyn EntityRecognizer>,
 }
 
+/// Key used for the fallback NLP engine that serves any language without a
+/// dedicated engine.
+const DEFAULT_NLP: &str = "*";
+
 pub struct AnalyzerEngine {
     pub registry: RecognizerRegistry,
-    pub nlp_engine: Box<dyn NlpEngine>,
+    /// NLP engines keyed by language; `"*"` is the fallback for any language.
+    nlp_engines: HashMap<String, Box<dyn NlpEngine>>,
     pub context_enhancer: LemmaContextAwareEnhancer,
     pub default_score_threshold: f64,
     pub supported_language: String,
@@ -61,7 +67,10 @@ impl AnalyzerEngine {
     pub fn new() -> Self {
         Self {
             registry: RecognizerRegistry::with_predefined("en"),
-            nlp_engine: Box::new(SimpleNlpEngine::new()),
+            nlp_engines: HashMap::from([(
+                DEFAULT_NLP.to_string(),
+                Box::new(SimpleNlpEngine::new()) as Box<dyn NlpEngine>,
+            )]),
             context_enhancer: LemmaContextAwareEnhancer::default(),
             default_score_threshold: 0.0,
             supported_language: "en".to_string(),
@@ -73,9 +82,25 @@ impl AnalyzerEngine {
         self
     }
 
+    /// Set the fallback NLP engine used for any language without a dedicated one.
     pub fn with_nlp_engine(mut self, engine: Box<dyn NlpEngine>) -> Self {
-        self.nlp_engine = engine;
+        self.nlp_engines.insert(DEFAULT_NLP.to_string(), engine);
         self
+    }
+
+    /// Register an NLP engine for a specific language (e.g. a French NER model),
+    /// enabling per-language NER: `analyze(text, "fr", ..)` uses the `"fr"` engine.
+    pub fn with_nlp_engine_for(mut self, language: &str, engine: Box<dyn NlpEngine>) -> Self {
+        self.nlp_engines.insert(language.to_string(), engine);
+        self
+    }
+
+    fn nlp_engine_for(&self, language: &str) -> &dyn NlpEngine {
+        self.nlp_engines
+            .get(language)
+            .or_else(|| self.nlp_engines.get(DEFAULT_NLP))
+            .expect("a default NLP engine is always present")
+            .as_ref()
     }
 
     pub fn get_supported_entities(&self, language: &str) -> Vec<String> {
@@ -122,7 +147,7 @@ impl AnalyzerEngine {
             None => all_entities,
         };
 
-        let nlp = self.nlp_engine.process(text, language);
+        let nlp = self.nlp_engine_for(language).process(text, language);
 
         let mut results: Vec<RecognizerResult> = Vec::new();
         let registry_recs = self.registry.get_recognizers(language, &requested);

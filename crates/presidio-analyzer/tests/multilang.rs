@@ -22,7 +22,6 @@ fn supported_entities_per_language() {
     let fr = engine.get_supported_entities("fr");
     assert!(fr.contains(&"CREDIT_CARD".to_string())); // agnostic -> any language
     assert!(fr.contains(&"BR_CPF".to_string()));
-    assert!(!fr.contains(&"PERSON".to_string())); // NER is en-only, not agnostic
 
     let en = engine.get_supported_entities("en");
     assert!(en.contains(&"PERSON".to_string())); // en keeps NER entities

@@ -251,6 +251,207 @@ pub fn validate_ca_sin(text: &str) -> Option<bool> {
     Some(crate::validators::luhn_valid(&d))
 }
 
+fn cpf_check(slice: &[u8]) -> u8 {
+    let n = slice.len();
+    let sum: u32 = slice
+        .iter()
+        .enumerate()
+        .map(|(i, &x)| x as u32 * ((n + 1 - i) as u32))
+        .sum();
+    let r = (sum * 10) % 11;
+    if r == 10 {
+        0
+    } else {
+        r as u8
+    }
+}
+
+/// Brazilian CPF — 11 digits, two mod-11 check digits.
+pub fn validate_br_cpf(text: &str) -> Option<bool> {
+    let d = digits(text);
+    if d.len() != 11 || d.iter().all(|&x| x == d[0]) {
+        return Some(false);
+    }
+    if cpf_check(&d[0..9]) != d[9] {
+        return Some(false);
+    }
+    Some(cpf_check(&d[0..10]) == d[10])
+}
+
+fn cnpj_check(d: &[u8], weights: &[u32]) -> u8 {
+    let sum: u32 = d.iter().zip(weights).map(|(&x, &w)| x as u32 * w).sum();
+    let r = sum % 11;
+    if r < 2 {
+        0
+    } else {
+        (11 - r) as u8
+    }
+}
+
+/// Brazilian CNPJ — 14 digits, two mod-11 check digits.
+pub fn validate_br_cnpj(text: &str) -> Option<bool> {
+    let d = digits(text);
+    if d.len() != 14 || d.iter().all(|&x| x == d[0]) {
+        return Some(false);
+    }
+    const W1: [u32; 12] = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const W2: [u32; 13] = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    if cnpj_check(&d[0..12], &W1) != d[12] {
+        return Some(false);
+    }
+    Some(cnpj_check(&d[0..13], &W2) == d[13])
+}
+
+/// Dutch BSN — 9 digits, "eleven-test".
+pub fn validate_nl_bsn(text: &str) -> Option<bool> {
+    let d = digits(text);
+    if d.len() != 9 {
+        return Some(false);
+    }
+    const W: [i32; 9] = [9, 8, 7, 6, 5, 4, 3, 2, -1];
+    let sum: i32 = (0..9).map(|i| d[i] as i32 * W[i]).sum();
+    Some(sum % 11 == 0)
+}
+
+/// Turkish T.C. Kimlik No — 11 digits, two check digits.
+pub fn validate_tr_tckn(text: &str) -> Option<bool> {
+    let d = digits(text);
+    if d.len() != 11 || d[0] == 0 {
+        return Some(false);
+    }
+    let odd = (d[0] + d[2] + d[4] + d[6] + d[8]) as i32;
+    let even = (d[1] + d[3] + d[5] + d[7]) as i32;
+    let c10 = (7 * odd - even).rem_euclid(10) as u8;
+    if c10 != d[9] {
+        return Some(false);
+    }
+    let s: u32 = (0..10).map(|i| d[i] as u32).sum();
+    Some((s % 10) as u8 == d[10])
+}
+
+/// Belgian National Register Number — 11 digits, mod-97 (pre/post 2000).
+pub fn validate_be_nrn(text: &str) -> Option<bool> {
+    let d = digits(text);
+    if d.len() != 11 {
+        return Some(false);
+    }
+    let first9: u64 = d[0..9].iter().fold(0u64, |a, &x| a * 10 + x as u64);
+    let check = d[9] as u64 * 10 + d[10] as u64;
+    let c1 = 97 - (first9 % 97);
+    let c2 = 97 - ((2_000_000_000u64 + first9) % 97);
+    Some(check == c1 || check == c2)
+}
+
+/// Portuguese NIF — 9 digits, mod-11.
+pub fn validate_pt_nif(text: &str) -> Option<bool> {
+    let d = digits(text);
+    if d.len() != 9 {
+        return Some(false);
+    }
+    let sum: u32 = (0..8).map(|i| d[i] as u32 * (9 - i as u32)).sum();
+    let r = sum % 11;
+    let mut check = 11 - r;
+    if check >= 10 {
+        check = 0;
+    }
+    Some(check == d[8] as u32)
+}
+
+/// Chinese Resident Identity Card — 18 chars, ISO 7064 MOD 11-2 (last may be X).
+pub fn validate_cn_ric(text: &str) -> Option<bool> {
+    let up: String = text
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .map(|c| c.to_ascii_uppercase())
+        .collect();
+    if up.len() != 18 {
+        return Some(false);
+    }
+    const W: [u32; 17] = [7, 9, 10, 5, 8, 4, 2, 1, 6, 3, 7, 9, 10, 5, 8, 4, 2];
+    let bytes = up.as_bytes();
+    let mut sum = 0u32;
+    for i in 0..17 {
+        match (bytes[i] as char).to_digit(10) {
+            Some(v) => sum += v * W[i],
+            None => return Some(false),
+        }
+    }
+    let check = (12 - (sum % 11)) % 11;
+    let expected = if check == 10 {
+        b'X'
+    } else {
+        b'0' + check as u8
+    };
+    Some(expected == bytes[17])
+}
+
+/// Russian SNILS — 11 digits, weighted mod-101.
+pub fn validate_ru_snils(text: &str) -> Option<bool> {
+    let d = digits(text);
+    if d.len() != 11 {
+        return Some(false);
+    }
+    let sum: u32 = (0..9).map(|i| d[i] as u32 * (9 - i as u32)).sum();
+    let mut check = sum % 101;
+    if check == 100 {
+        check = 0;
+    }
+    Some(check == d[9] as u32 * 10 + d[10] as u32)
+}
+
+/// German tax ID (Steuer-IdNr) — 11 digits, iterative product/sum check.
+pub fn validate_de_tax(text: &str) -> Option<bool> {
+    let d = digits(text);
+    if d.len() != 11 {
+        return Some(false);
+    }
+    let mut product = 10u32;
+    for &digit in d.iter().take(10) {
+        let mut sum = (digit as u32 + product) % 10;
+        if sum == 0 {
+            sum = 10;
+        }
+        product = (sum * 2) % 11;
+    }
+    let check = (11 - product) % 10;
+    Some(check == d[10] as u32)
+}
+
+/// Swedish personnummer — Luhn over the 10-digit form.
+pub fn validate_se_pnr(text: &str) -> Option<bool> {
+    let dd: String = text.chars().filter(|c| c.is_ascii_digit()).collect();
+    let s = if dd.len() == 12 {
+        dd[2..].to_string()
+    } else {
+        dd
+    };
+    if s.len() != 10 {
+        return Some(false);
+    }
+    Some(crate::validators::luhn_valid(&s))
+}
+
+/// South African ID number — 13 digits, Luhn.
+pub fn validate_za_id(text: &str) -> Option<bool> {
+    let dd: String = text.chars().filter(|c| c.is_ascii_digit()).collect();
+    if dd.len() != 13 {
+        return Some(false);
+    }
+    Some(crate::validators::luhn_valid(&dd))
+}
+
+/// Korean Resident Registration Number — 13 digits, weighted mod-11.
+pub fn validate_kr_rrn(text: &str) -> Option<bool> {
+    let d = digits(text);
+    if d.len() != 13 {
+        return Some(false);
+    }
+    const W: [u32; 12] = [2, 3, 4, 5, 6, 7, 8, 9, 2, 3, 4, 5];
+    let sum: u32 = (0..12).map(|i| d[i] as u32 * W[i]).sum();
+    let check = (11 - (sum % 11)) % 10;
+    Some(check == d[12] as u32)
+}
+
 // ---------------------------------------------------------------------------
 // Recognizers
 // ---------------------------------------------------------------------------
@@ -512,6 +713,160 @@ pub fn us_bank_number() -> PatternRecognizer {
     .with_context(&["bank", "account", "acct", "routing", "checking", "savings"])
 }
 
+pub fn br_cpf() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "BrCpfRecognizer",
+        "BR_CPF",
+        vec![p("CPF", r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b", 0.1)],
+    )
+    .with_validator(validate_br_cpf)
+    .with_context(&["cpf"])
+}
+
+pub fn br_cnpj() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "BrCnpjRecognizer",
+        "BR_CNPJ",
+        vec![p("CNPJ", r"\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b", 0.1)],
+    )
+    .with_validator(validate_br_cnpj)
+    .with_context(&["cnpj"])
+}
+
+pub fn nl_bsn() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "NlBsnRecognizer",
+        "NL_BSN",
+        vec![p("BSN", r"\b\d{9}\b", 0.1)],
+    )
+    .with_validator(validate_nl_bsn)
+    .with_context(&["bsn", "burgerservicenummer"])
+}
+
+pub fn tr_tckn() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "TrTcknRecognizer",
+        "TR_TCKN",
+        vec![p("TCKN", r"\b[1-9]\d{10}\b", 0.1)],
+    )
+    .with_validator(validate_tr_tckn)
+    .with_context(&["tc", "kimlik", "tckn"])
+}
+
+pub fn be_nrn() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "BeNrnRecognizer",
+        "BE_NRN",
+        vec![p("NRN", r"\b\d{2}\.?\d{2}\.?\d{2}-?\d{3}\.?\d{2}\b", 0.1)],
+    )
+    .with_validator(validate_be_nrn)
+    .with_context(&["rijksregister", "niss", "nrn"])
+}
+
+pub fn pt_nif() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "PtNifRecognizer",
+        "PT_NIF",
+        vec![p("PT NIF", r"\b\d{9}\b", 0.1)],
+    )
+    .with_validator(validate_pt_nif)
+    .with_context(&["nif", "contribuinte"])
+}
+
+pub fn cn_ric() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "CnRicRecognizer",
+        "CN_RIC",
+        vec![p("RIC", r"\b\d{17}[\dXx]\b", 0.1)],
+    )
+    .with_validator(validate_cn_ric)
+    .with_context(&["身份证", "id"])
+}
+
+pub fn ru_snils() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "RuSnilsRecognizer",
+        "RU_SNILS",
+        vec![p("SNILS", r"\b\d{3}-?\d{3}-?\d{3} ?\d{2}\b", 0.1)],
+    )
+    .with_validator(validate_ru_snils)
+    .with_context(&["снилс", "snils"])
+}
+
+pub fn de_tax() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "DeTaxRecognizer",
+        "DE_TAX_ID",
+        vec![p("Steuer-ID", r"\b\d{11}\b", 0.05)],
+    )
+    .with_validator(validate_de_tax)
+    .with_context(&["steuer", "steueridentifikationsnummer", "tax"])
+}
+
+pub fn se_pnr() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "SePnrRecognizer",
+        "SE_PERSONNUMMER",
+        vec![p("Personnummer", r"\b\d{6}[-+]?\d{4}\b", 0.1)],
+    )
+    .with_validator(validate_se_pnr)
+    .with_context(&["personnummer"])
+}
+
+pub fn za_id() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "ZaIdRecognizer",
+        "ZA_ID",
+        vec![p("ZA ID", r"\b\d{13}\b", 0.1)],
+    )
+    .with_validator(validate_za_id)
+    .with_context(&["id", "identity"])
+}
+
+pub fn kr_rrn() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "KrRrnRecognizer",
+        "KR_RRN",
+        vec![p("RRN", r"\b\d{6}-?\d{7}\b", 0.1)],
+    )
+    .with_validator(validate_kr_rrn)
+    .with_context(&["주민", "rrn"])
+}
+
+/// Japanese My Number — 12 digits (pattern; context-gated).
+pub fn jp_mynumber() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "JpMyNumberRecognizer",
+        "JP_MYNUMBER",
+        vec![p("My Number", r"\b\d{4} ?\d{4} ?\d{4}\b", 0.1)],
+    )
+    .with_context(&["mynumber", "個人番号", "マイナンバー"])
+}
+
+/// Mexican RFC — pattern.
+pub fn mx_rfc() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "MxRfcRecognizer",
+        "MX_RFC",
+        vec![p("RFC", r"\b[A-Za-z]{4}\d{6}[A-Za-z0-9]{3}\b", 0.3)],
+    )
+    .with_context(&["rfc"])
+}
+
+/// Mexican CURP — pattern.
+pub fn mx_curp() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "MxCurpRecognizer",
+        "MX_CURP",
+        vec![p(
+            "CURP",
+            r"\b[A-Za-z]{4}\d{6}[A-Za-z]{6}[A-Za-z0-9]\d\b",
+            0.3,
+        )],
+    )
+    .with_context(&["curp"])
+}
+
 /// Every country-specific recognizer, ready to register.
 pub fn all_country() -> Vec<Box<dyn EntityRecognizer>> {
     vec![
@@ -540,6 +895,22 @@ pub fn all_country() -> Vec<Box<dyn EntityRecognizer>> {
         Box::new(us_passport()),
         Box::new(us_driver_license()),
         Box::new(us_bank_number()),
+        // International (checksummed where a check digit exists).
+        Box::new(br_cpf()),
+        Box::new(br_cnpj()),
+        Box::new(nl_bsn()),
+        Box::new(tr_tckn()),
+        Box::new(be_nrn()),
+        Box::new(pt_nif()),
+        Box::new(cn_ric()),
+        Box::new(ru_snils()),
+        Box::new(de_tax()),
+        Box::new(se_pnr()),
+        Box::new(za_id()),
+        Box::new(kr_rrn()),
+        Box::new(jp_mynumber()),
+        Box::new(mx_rfc()),
+        Box::new(mx_curp()),
     ]
 }
 
@@ -636,5 +1007,91 @@ mod tests {
         assert_eq!(validate_ca_sin("046 454 286"), Some(true));
         assert_eq!(validate_ca_sin("046 454 287"), Some(false));
         assert_eq!(validate_ca_sin("12"), Some(false));
+    }
+
+    #[test]
+    fn br_cpf_check() {
+        assert_eq!(validate_br_cpf("111.444.777-35"), Some(true));
+        assert_eq!(validate_br_cpf("111.444.777-36"), Some(false));
+        assert_eq!(validate_br_cpf("111.111.111-11"), Some(false)); // all-equal
+        assert_eq!(validate_br_cpf("123"), Some(false));
+    }
+
+    #[test]
+    fn br_cnpj_check() {
+        assert_eq!(validate_br_cnpj("11.222.333/0001-81"), Some(true));
+        assert_eq!(validate_br_cnpj("11.222.333/0001-82"), Some(false));
+        assert_eq!(validate_br_cnpj("1"), Some(false));
+    }
+
+    #[test]
+    fn nl_bsn_check() {
+        assert_eq!(validate_nl_bsn("111222333"), Some(true));
+        assert_eq!(validate_nl_bsn("111222334"), Some(false));
+        assert_eq!(validate_nl_bsn("12"), Some(false));
+    }
+
+    #[test]
+    fn tr_tckn_check() {
+        assert_eq!(validate_tr_tckn("10000000146"), Some(true));
+        assert_eq!(validate_tr_tckn("10000000147"), Some(false));
+        assert_eq!(validate_tr_tckn("00000000146"), Some(false));
+    }
+
+    #[test]
+    fn be_nrn_check() {
+        assert_eq!(validate_be_nrn("93051822361"), Some(true));
+        assert_eq!(validate_be_nrn("93051822362"), Some(false));
+        assert_eq!(validate_be_nrn("1"), Some(false));
+    }
+
+    #[test]
+    fn pt_nif_check() {
+        assert_eq!(validate_pt_nif("123456789"), Some(true));
+        assert_eq!(validate_pt_nif("123456781"), Some(false));
+        assert_eq!(validate_pt_nif("12"), Some(false));
+    }
+
+    #[test]
+    fn cn_ric_check() {
+        assert_eq!(validate_cn_ric("440524188001010014"), Some(true));
+        assert_eq!(validate_cn_ric("440524188001010015"), Some(false));
+        assert_eq!(validate_cn_ric("123"), Some(false));
+    }
+
+    #[test]
+    fn ru_snils_check() {
+        assert_eq!(validate_ru_snils("11223344595"), Some(true));
+        assert_eq!(validate_ru_snils("11223344596"), Some(false));
+        assert_eq!(validate_ru_snils("1"), Some(false));
+    }
+
+    #[test]
+    fn de_tax_check() {
+        assert_eq!(validate_de_tax("86095742719"), Some(true));
+        assert_eq!(validate_de_tax("86095742718"), Some(false));
+        assert_eq!(validate_de_tax("12"), Some(false));
+    }
+
+    #[test]
+    fn se_pnr_check() {
+        assert_eq!(validate_se_pnr("8112189876"), Some(true));
+        assert_eq!(validate_se_pnr("8112189875"), Some(false));
+        assert_eq!(validate_se_pnr("198112189876"), Some(true));
+        assert_eq!(validate_se_pnr("12"), Some(false));
+    }
+
+    #[test]
+    fn za_id_check() {
+        assert_eq!(validate_za_id("8001015009087"), Some(true));
+        assert_eq!(validate_za_id("8001015009088"), Some(false));
+        assert_eq!(validate_za_id("12"), Some(false));
+    }
+
+    #[test]
+    fn kr_rrn_check() {
+        assert_eq!(validate_kr_rrn("9412011234569"), Some(true));
+        assert_eq!(validate_kr_rrn("9412011234568"), Some(false));
+        assert_eq!(validate_kr_rrn("12"), Some(false));
     }
 }

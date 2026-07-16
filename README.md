@@ -87,9 +87,12 @@ regions. `+CC` international numbers are detected regardless of region.
 **Country-specific** (checksum-validated → promoted to 1.0): `UK_NHS` (mod-11),
 `ES_NIF`, `ES_NIE`, `PL_PESEL`, `SG_NRIC_FIN`, `AU_ABN` (mod-89), `AU_TFN`,
 `AU_ACN`, `AU_MEDICARE`, `IN_AADHAAR` (Verhoeff), `FI_PERSONAL_IDENTITY_CODE`,
-`IT_VAT_CODE`, `CA_SIN` (Luhn). **Pattern-only:** `UK_NINO`, `IN_PAN`, `IN_VOTER`,
-`IN_PASSPORT`, `IN_VEHICLE_REGISTRATION`, `IT_FISCAL_CODE`, `IT_DRIVER_LICENSE`,
-`SG_UEN`, `US_ITIN`, `US_PASSPORT`, `US_DRIVER_LICENSE`, `US_BANK_NUMBER`.
+`IT_VAT_CODE`, `CA_SIN` (Luhn), `BR_CPF`, `BR_CNPJ`, `NL_BSN`, `TR_TCKN`,
+`BE_NRN` (mod-97), `PT_NIF`, `CN_RIC` (ISO 7064), `RU_SNILS`, `DE_TAX_ID`,
+`SE_PERSONNUMMER` (Luhn), `ZA_ID` (Luhn), `KR_RRN`. **Pattern-only:** `UK_NINO`,
+`IN_PAN`, `IN_VOTER`, `IN_PASSPORT`, `IN_VEHICLE_REGISTRATION`, `IT_FISCAL_CODE`,
+`IT_DRIVER_LICENSE`, `SG_UEN`, `US_ITIN`, `US_PASSPORT`, `US_DRIVER_LICENSE`,
+`US_BANK_NUMBER`, `JP_MYNUMBER`, `MX_RFC`, `MX_CURP` — ~54 entity types total.
 
 **NER** entities (`PERSON`, `LOCATION`, `ORGANIZATION`, `NRP`) are wired through
 `NerRecognizer` and activate once an NLP engine with NER is set.

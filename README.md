@@ -100,7 +100,8 @@ regions. `+CC` international numbers are detected regardless of region.
 ### Operators ported
 
 `replace`, `redact`, `mask`, `hash` (sha256/sha512), `keep`, `encrypt`,
-`decrypt`, `custom`.
+`decrypt`, `custom`, `surrogate` (local, deterministic fake values per entity
+type — a self-contained stand-in for Presidio's Azure-backed `surrogate_ahds`).
 
 ## Extending
 

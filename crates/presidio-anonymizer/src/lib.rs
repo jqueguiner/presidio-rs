@@ -31,4 +31,4 @@ pub use engine::AnonymizerEngine;
 pub use entities::{EngineResult, OperatorConfig, OperatorResult, RecognizerResult};
 pub use factory::OperatorsFactory;
 pub use operator::{Operator, OperatorType};
-pub use operators::{Custom, Decrypt, Encrypt, Hash, Keep, Mask, Redact, Replace};
+pub use operators::{Custom, Decrypt, Encrypt, Hash, Keep, Mask, Redact, Replace, Surrogate};

@@ -61,6 +61,12 @@ impl EntityRecognizer for NerRecognizer {
         &self.language
     }
 
+    fn is_language_agnostic(&self) -> bool {
+        // The recognizer only maps whatever NER entities the (per-language) NLP
+        // engine produced, so it applies to every language.
+        true
+    }
+
     fn analyze(
         &self,
         _text: &str,

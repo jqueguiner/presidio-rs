@@ -2072,7 +2072,7 @@ dependencies = [
 
 [[package]]
 name = "presidio-analyzer"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "phonenumber",
  "regex",
@@ -2083,7 +2083,7 @@ dependencies = [
 
 [[package]]
 name = "presidio-anonymizer"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "aes",
  "anyhow",
@@ -2098,7 +2098,7 @@ dependencies = [
 
 [[package]]
 name = "presidio-cli"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "clap",
@@ -2109,7 +2109,7 @@ dependencies = [
 
 [[package]]
 name = "presidio-ner"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "anyhow",
  "candle-core",
@@ -2124,7 +2124,7 @@ dependencies = [
 
 [[package]]
 name = "presidio-rs-python"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "presidio-analyzer",
  "presidio-anonymizer",
@@ -2134,7 +2134,7 @@ dependencies = [
 
 [[package]]
 name = "presidio-server"
-version = "0.1.4"
+version = "0.1.5"
 dependencies = [
  "axum",
  "presidio-analyzer",

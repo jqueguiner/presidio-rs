@@ -5,6 +5,7 @@
 //! forward pass, softmaxes per token, and hands BIO predictions to
 //! [`crate::decode::decode_bio`].
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{Context, Result};
@@ -25,6 +26,11 @@ pub struct TransformerNerEngine {
     id2label: Vec<String>,
     device: Device,
     language: String,
+    /// Maps a model label type (e.g. `PER`) to a Presidio entity (`PERSON`).
+    /// Types absent from the map pass through unchanged.
+    label_mapping: HashMap<String, String>,
+    /// Drop entities scoring below this (0.0 = keep all).
+    min_score: f64,
 }
 
 impl TransformerNerEngine {
@@ -83,7 +89,34 @@ impl TransformerNerEngine {
             id2label,
             device,
             language: "en".to_string(),
+            label_mapping: default_label_mapping(),
+            min_score: 0.0,
         })
+    }
+
+    /// Override the model-label → Presidio-entity mapping (for models whose label
+    /// scheme differs from the CoNLL default).
+    pub fn with_label_mapping(mut self, mapping: HashMap<String, String>) -> Self {
+        self.label_mapping = mapping;
+        self
+    }
+
+    /// Add or override a single label mapping, e.g. `.map_label("PER", "PERSON")`.
+    pub fn map_label(mut self, from: &str, to: &str) -> Self {
+        self.label_mapping.insert(from.to_string(), to.to_string());
+        self
+    }
+
+    /// Drop detected entities scoring below `min_score`.
+    pub fn with_min_score(mut self, min_score: f64) -> Self {
+        self.min_score = min_score;
+        self
+    }
+
+    /// Set the language this engine advertises via [`NlpEngine::is_available`].
+    pub fn with_language(mut self, language: &str) -> Self {
+        self.language = language.to_string();
+        self
     }
 
     fn predict(&self, text: &str) -> Result<Vec<NerEntity>> {
@@ -130,8 +163,51 @@ impl TransformerNerEngine {
                 is_special: special.get(i).copied().unwrap_or(0) == 1,
             });
         }
-        Ok(decode_bio(&preds))
+        Ok(postprocess(
+            decode_bio(&preds),
+            &self.label_mapping,
+            self.min_score,
+        ))
     }
+}
+
+/// Default CoNLL-style model-label → Presidio-entity mapping.
+pub fn default_label_mapping() -> HashMap<String, String> {
+    [
+        ("PER", "PERSON"),
+        ("PERSON", "PERSON"),
+        ("LOC", "LOCATION"),
+        ("LOCATION", "LOCATION"),
+        ("GPE", "LOCATION"),
+        ("ORG", "ORGANIZATION"),
+        ("ORGANIZATION", "ORGANIZATION"),
+        ("MISC", "NRP"),
+        ("NORP", "NRP"),
+        ("DATE", "DATE_TIME"),
+        ("TIME", "DATE_TIME"),
+    ]
+    .iter()
+    .map(|(k, v)| (k.to_string(), v.to_string()))
+    .collect()
+}
+
+/// Apply the label mapping and score threshold to raw NER entities. Entities
+/// whose type is absent from the mapping pass through unchanged.
+pub(crate) fn postprocess(
+    entities: Vec<NerEntity>,
+    mapping: &HashMap<String, String>,
+    min_score: f64,
+) -> Vec<NerEntity> {
+    entities
+        .into_iter()
+        .filter(|e| e.score >= min_score)
+        .map(|mut e| {
+            if let Some(mapped) = mapping.get(&e.entity_type) {
+                e.entity_type = mapped.clone();
+            }
+            e
+        })
+        .collect()
 }
 
 impl NlpEngine for TransformerNerEngine {
@@ -217,5 +293,38 @@ mod tests {
     #[test]
     fn missing_id2label_errors() {
         assert!(parse_id2label(r#"{"foo": 1}"#).is_err());
+    }
+
+    fn ent(t: &str, score: f64) -> NerEntity {
+        NerEntity {
+            entity_type: t.to_string(),
+            start: 0,
+            end: 3,
+            score,
+        }
+    }
+
+    #[test]
+    fn postprocess_maps_and_passes_through() {
+        let m = default_label_mapping();
+        let out = postprocess(vec![ent("PER", 0.9), ent("CUSTOM", 0.9)], &m, 0.0);
+        assert_eq!(out[0].entity_type, "PERSON"); // mapped
+        assert_eq!(out[1].entity_type, "CUSTOM"); // unmapped -> passthrough
+    }
+
+    #[test]
+    fn postprocess_filters_low_scores() {
+        let m = default_label_mapping();
+        let out = postprocess(vec![ent("PER", 0.4), ent("LOC", 0.8)], &m, 0.5);
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].entity_type, "LOCATION");
+    }
+
+    #[test]
+    fn custom_mapping_overrides() {
+        let mut m = HashMap::new();
+        m.insert("PER".to_string(), "NAME".to_string());
+        let out = postprocess(vec![ent("PER", 1.0)], &m, 0.0);
+        assert_eq!(out[0].entity_type, "NAME");
     }
 }

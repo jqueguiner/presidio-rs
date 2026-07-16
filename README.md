@@ -136,11 +136,17 @@ presidio-ner = "0.1"
 use presidio_analyzer::AnalyzerEngine;
 use presidio_ner::TransformerNerEngine;
 
-let ner = TransformerNerEngine::from_pretrained("dslim/bert-base-NER")?; // or from_path(dir)
+let ner = TransformerNerEngine::from_pretrained("dslim/bert-base-NER")? // or from_path(dir)
+    .with_min_score(0.5)            // drop low-confidence spans
+    .map_label("PER", "PERSON");    // customize model-label -> entity mapping
 let engine = AnalyzerEngine::new().with_nlp_engine(Box::new(ner));
 let results = engine.analyze("John Smith lives in Paris", "en", None, None);
 // -> PERSON "John Smith", LOCATION "Paris"
 ```
+
+Any HuggingFace BERT `*ForTokenClassification` model works via `from_pretrained`
+/ `from_path`; `with_label_mapping` / `map_label` / `with_min_score` /
+`with_language` tune label mapping, thresholding and the advertised language.
 
 To bring your own backend, implement `nlp::NlpEngine` directly, populate
 `NlpArtifacts::entities`, and pass it via `with_nlp_engine`. The existing

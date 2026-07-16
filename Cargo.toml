@@ -4,6 +4,7 @@ members = [
     "crates/presidio-analyzer",
     "crates/presidio-anonymizer",
     "crates/presidio-cli",
+    "crates/presidio-ner",
     "bindings/python",
 ]
 # The Python extension module (pyo3 cdylib) is built by maturin, not by plain

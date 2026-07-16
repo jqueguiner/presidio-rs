@@ -1,0 +1,43 @@
+name: NER
+
+# Optional, path-filtered job for the heavy `presidio-ner` crate (Candle + a
+# model download). NOT a required check — the core CI (lint/test/coverage/
+# bindings) never builds this crate. Runs the live inference test here, where
+# the Hugging Face download is fast.
+
+on:
+  push:
+    branches: [main]
+    paths: ["crates/presidio-ner/**", ".github/workflows/ner.yml"]
+  pull_request:
+    paths: ["crates/presidio-ner/**", ".github/workflows/ner.yml"]
+  workflow_dispatch:
+
+concurrency:
+  group: ner-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  ner:
+    name: ner (candle + live model)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Cache Hugging Face models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-dslim-bert-base-ner
+      - name: Clippy
+        run: cargo clippy -p presidio-ner --all-targets -- -D warnings
+      - name: Unit tests (no download)
+        run: cargo test -p presidio-ner --lib
+      - name: Live inference (downloads dslim/bert-base-NER)
+        run: cargo test -p presidio-ner --test live -- --ignored --nocapture

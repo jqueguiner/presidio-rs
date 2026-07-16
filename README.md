@@ -119,9 +119,30 @@ registry.add(Box::new(
 let engine = AnalyzerEngine::new().with_registry(registry);
 ```
 
-**Add real NER** — implement `nlp::NlpEngine` (e.g. over `rust-bert` / ONNX),
-populate `NlpArtifacts::entities`, and pass it via
-`AnalyzerEngine::new().with_nlp_engine(Box::new(MyEngine))`. The existing
+**NER (`PERSON` / `LOCATION` / `ORGANIZATION` / `NRP`)** — provided by the
+**optional** [`presidio-ner`](crates/presidio-ner) crate: pure-Rust
+[Candle](https://github.com/huggingface/candle) inference over a HuggingFace BERT
+token-classifier. It's a separate crate (not in `default-members`), so the core,
+CLI and Python wheel stay lean — the heavy ML deps and the ~250 MB model only
+land on machines that opt in. Weights are lazily downloaded (and cached), never
+bundled.
+
+```toml
+# add only if you want NER
+presidio-ner = "0.1"
+```
+```rust
+use presidio_analyzer::AnalyzerEngine;
+use presidio_ner::TransformerNerEngine;
+
+let ner = TransformerNerEngine::from_pretrained("dslim/bert-base-NER")?; // or from_path(dir)
+let engine = AnalyzerEngine::new().with_nlp_engine(Box::new(ner));
+let results = engine.analyze("John Smith lives in Paris", "en", None, None);
+// -> PERSON "John Smith", LOCATION "Paris"
+```
+
+To bring your own backend, implement `nlp::NlpEngine` directly, populate
+`NlpArtifacts::entities`, and pass it via `with_nlp_engine`. The existing
 `NerRecognizer` maps model labels onto Presidio entity names.
 
 **Add a custom operator** — register an `operators::Custom` (or any `Operator`)

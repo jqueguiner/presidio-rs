@@ -2,7 +2,9 @@
 //!
 //! Port of `presidio_analyzer.RecognizerRegistry`.
 
+use crate::country;
 use crate::ner_recognizer::NerRecognizer;
+use crate::phone_recognizer::PhoneRecognizer;
 use crate::predefined;
 use crate::recognizer::EntityRecognizer;
 
@@ -39,6 +41,10 @@ impl RecognizerRegistry {
             for r in predefined::all_english() {
                 self.recognizers.push(r);
             }
+            for r in country::all_country() {
+                self.recognizers.push(r);
+            }
+            self.recognizers.push(Box::new(PhoneRecognizer::default()));
             self.recognizers.push(Box::new(NerRecognizer::default()));
         }
     }

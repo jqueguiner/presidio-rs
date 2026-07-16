@@ -73,10 +73,22 @@ let result = anon.anonymize(text, spans, &ops).unwrap();
 
 ### Predefined recognizers ported
 
-`CREDIT_CARD` (Luhn), `CRYPTO` (BTC Base58Check), `IBAN_CODE` (mod-97),
-`EMAIL_ADDRESS`, `IP_ADDRESS` (v4/v6), `MAC_ADDRESS`, `PHONE_NUMBER`, `URL`,
-`DATE_TIME`, `US_SSN`. NER entities (`PERSON`, `LOCATION`, `ORGANIZATION`, `NRP`)
-are wired through `NerRecognizer` and activate once an NLP engine with NER is set.
+**Generic:** `CREDIT_CARD` (Luhn), `CRYPTO` (BTC Base58Check), `IBAN_CODE`
+(mod-97), `EMAIL_ADDRESS`, `IP_ADDRESS` (v4/v6), `MAC_ADDRESS`, `URL`,
+`DATE_TIME`, `US_SSN`.
+
+**Phone:** `PHONE_NUMBER` via the [`phonenumber`](https://crates.io/crates/phonenumber)
+crate (Rust libphonenumber) — parses + validates, default regions US/GB, and any
+`+CC` international number regardless of region. `PhoneRecognizer.regions` is
+configurable.
+
+**Country-specific** (checksum-validated → promoted to 1.0): `UK_NHS` (mod-11),
+`ES_NIF`, `PL_PESEL`, `SG_NRIC_FIN`, `AU_ABN` (mod-89), `AU_TFN`, `IN_AADHAAR`
+(Verhoeff), `FI_PERSONAL_IDENTITY_CODE`. **Pattern-only:** `UK_NINO`, `IN_PAN`,
+`IT_FISCAL_CODE`, `US_ITIN`.
+
+**NER** entities (`PERSON`, `LOCATION`, `ORGANIZATION`, `NRP`) are wired through
+`NerRecognizer` and activate once an NLP engine with NER is set.
 
 ### Operators ported
 
@@ -112,17 +124,21 @@ on the engine's factory via `factory_mut()`.
 
 Ported and tested:
 - Pattern-recognizer framework, registry, analyzer-engine orchestration
-- Checksum validation (Luhn / IBAN mod-97 / Base58Check) and result promotion
+- Checksum validation (Luhn / IBAN mod-97 / Base58Check / NHS / PESEL / SG NRIC /
+  AU ABN+TFN / Aadhaar Verhoeff / FI HETU) and result promotion
+- `PHONE_NUMBER` via real libphonenumber (`phonenumber` crate)
 - Lemma context-aware score enhancement
 - Conflict resolution (highest score, longest span, non-overlapping)
 - Full anonymizer/deanonymizer operator set incl. AES-CBC encrypt/decrypt
 
 Simplified vs. upstream (contributions welcome):
-- **NER** — trait seam in place; no bundled model (upstream bundles spaCy).
-- **PHONE_NUMBER / DATE_TIME** — regex-based; upstream uses `phonenumbers` and a
-  date NER. Wire an NLP backend for parity.
-- **Country-specific recognizers** — the common ones are in; the full 18-country
-  set under `predefined_recognizers/country_specific` is not yet exhaustive.
+- **NER** — trait seam in place; no bundled model (upstream bundles spaCy). This
+  is the main behavioural gap: `PERSON`/`LOCATION`/`ORGANIZATION` need an NLP
+  backend (e.g. `rust-bert`/ONNX) wired via `with_nlp_engine`.
+- **DATE_TIME** — regex-based; upstream also uses a date NER.
+- **Country-specific recognizers** — a representative, checksum-validated subset
+  is in; the full 18-country set under `predefined_recognizers/country_specific`
+  is not yet exhaustive.
 - **presidio-image-redactor** / **presidio-structured** — not yet ported.
 
 ## Testing

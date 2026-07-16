@@ -106,28 +106,6 @@ pub fn mac_address() -> PatternRecognizer {
     .with_context(&["mac", "address"])
 }
 
-/// PHONE_NUMBER — US-style layout (no libphonenumber dependency; see README).
-pub fn phone_number() -> PatternRecognizer {
-    PatternRecognizer::new(
-        "PhoneRecognizer",
-        "PHONE_NUMBER",
-        vec![p(
-            "Phone (US)",
-            r"\b(?:\+?\d{1,2}[\s.\-]?)?\(?\d{3}\)?[\s.\-]?\d{3}[\s.\-]?\d{4}\b",
-            0.4,
-        )],
-    )
-    .with_context(&[
-        "phone",
-        "number",
-        "telephone",
-        "cell",
-        "mobile",
-        "call",
-        "tel",
-    ])
-}
-
 /// URL.
 pub fn url() -> PatternRecognizer {
     PatternRecognizer::new(
@@ -179,7 +157,6 @@ pub fn all_english() -> Vec<Box<dyn EntityRecognizer>> {
         Box::new(iban()),
         Box::new(ip_address()),
         Box::new(mac_address()),
-        Box::new(phone_number()),
         Box::new(url()),
         Box::new(date_time()),
         Box::new(us_ssn()),

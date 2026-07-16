@@ -31,19 +31,26 @@ pub fn credit_card() -> PatternRecognizer {
     ])
 }
 
-/// CRYPTO — Bitcoin address, promoted to 1.0 by Base58Check.
+/// CRYPTO — Bitcoin, Ethereum and Litecoin addresses. Legacy Base58 (BTC/LTC) is
+/// promoted to 1.0 by Base58Check; Ethereum (`0x…`) and bech32 SegWit (`bc1…`,
+/// `ltc1…`) are matched by shape at medium confidence.
 pub fn crypto() -> PatternRecognizer {
     PatternRecognizer::new(
         "CryptoRecognizer",
         "CRYPTO",
-        vec![p(
-            "BTC address",
-            r"\b[13][a-km-zA-HJ-NP-Z1-9]{25,39}\b",
-            0.5,
-        )],
+        vec![
+            // Legacy Base58: BTC P2PKH/P2SH (1/3) and LTC (L/M/3).
+            p("Crypto (Base58 BTC/LTC)", r"\b[13LM][a-km-zA-HJ-NP-Z1-9]{25,39}\b", 0.5),
+            // Ethereum: 0x + 40 hex nibbles.
+            p("Crypto (ETH)", r"\b0[xX][a-fA-F0-9]{40}\b", 0.5),
+            // Bech32 SegWit: BTC (bc1) / LTC (ltc1) with the bech32 data charset.
+            p("Crypto (bech32 BTC/LTC)", r"\b(?:bc1|ltc1)[ac-hj-np-z02-9]{8,87}\b", 0.5),
+        ],
     )
-    .with_validator(validators::validate_btc)
-    .with_context(&["wallet", "btc", "bitcoin", "crypto", "address"])
+    .with_validator(validators::validate_crypto)
+    .with_context(&[
+        "wallet", "btc", "eth", "ltc", "bitcoin", "ethereum", "litecoin", "crypto", "address",
+    ])
 }
 
 /// EMAIL_ADDRESS.

@@ -19,6 +19,12 @@ pub trait EntityRecognizer: Send + Sync {
     fn supported_language(&self) -> &str {
         "en"
     }
+    /// True if this recognizer works for any language (e.g. regex/checksum PII
+    /// like credit cards or IBANs). Such recognizers match regardless of the
+    /// requested language; language-specific ones (NER) return `false`.
+    fn is_language_agnostic(&self) -> bool {
+        false
+    }
     /// Analyze `text`, restricted to the requested `entities`. `nlp` gives access
     /// to tokens / NER artifacts (may be `None` for recognizers that don't need it).
     fn analyze(
@@ -87,6 +93,11 @@ impl EntityRecognizer for PatternRecognizer {
 
     fn supported_language(&self) -> &str {
         &self.supported_language
+    }
+
+    fn is_language_agnostic(&self) -> bool {
+        // Regex + checksum PII (cards, IBANs, national IDs, ...) is language-independent.
+        true
     }
 
     fn analyze(

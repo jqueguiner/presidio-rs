@@ -133,6 +133,10 @@ impl EntityRecognizer for PhoneRecognizer {
         &self.language
     }
 
+    fn is_language_agnostic(&self) -> bool {
+        true
+    }
+
     fn analyze(
         &self,
         text: &str,

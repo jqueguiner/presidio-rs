@@ -2,12 +2,20 @@
 //! Google's libphonenumber), replacing the earlier US-only regex.
 //!
 //! Port of `presidio_analyzer.predefined_recognizers.PhoneRecognizer`, which
-//! uses libphonenumber's matcher across a set of default regions. Here we pull
-//! phone-like candidates out of the text with a broad regex, then confirm each
-//! by parsing + validating against the configured regions.
+//! runs libphonenumber's `PhoneNumberMatcher` (leniency `VALID`) across a set of
+//! default regions. The Rust crate exposes no matcher, so we approximate it:
+//!  1. pull phone-like candidates out of the text with a broad regex,
+//!  2. parse + validate each against the configured regions,
+//!  3. apply a leniency filter that emulates `Leniency.VALID`'s grouping check —
+//!     numbers written with an explicit `+CC` are accepted outright, while bare
+//!     national-format candidates must have a digit-group shape matching the
+//!     number's own national formatting. That last step is what stops SSNs and
+//!     dates (e.g. `078-05-1120`, `12/05/2020`) from validating as phone numbers
+//!     in permissive regions, which in turn lets us keep Presidio's full default
+//!     region list rather than narrowing it.
 
 use once_cell_regex::CANDIDATE;
-use phonenumber::country;
+use phonenumber::{country, Mode};
 
 use crate::entities::{AnalysisExplanation, RecognizerResult};
 use crate::nlp::NlpArtifacts;
@@ -34,7 +42,6 @@ pub struct PhoneRecognizer {
     pub entity: String,
     pub language: String,
     pub regions: Vec<country::Id>,
-    // (Id is Copy; the vec is small and cloned rarely.)
     pub context: Vec<String>,
     pub score: f64,
 }
@@ -45,13 +52,18 @@ impl Default for PhoneRecognizer {
             name: "PhoneRecognizer".to_string(),
             entity: "PHONE_NUMBER".to_string(),
             language: "en".to_string(),
-            // Default regions kept deliberately tight to limit false positives
-            // (permissive regions happily "validate" SSNs / dates). Numbers that
-            // carry an explicit +CC country code still parse correctly against
-            // any of these, so international detection is preserved; add regions
-            // via `PhoneRecognizer { regions, .. }` when national-format numbers
-            // from other countries must be caught.
-            regions: vec![country::Id::US, country::Id::GB],
+            // Presidio's DEFAULT_SUPPORTED_REGIONS. Safe to keep broad because
+            // the grouping-leniency filter below rejects non-phone digit shapes.
+            regions: vec![
+                country::Id::US,
+                country::Id::GB,
+                country::Id::DE,
+                country::Id::FR,
+                country::Id::IL,
+                country::Id::IN,
+                country::Id::CA,
+                country::Id::BR,
+            ],
             context: [
                 "phone",
                 "number",
@@ -66,6 +78,45 @@ impl Default for PhoneRecognizer {
             .collect(),
             score: 0.75,
         }
+    }
+}
+
+/// Lengths of each maximal run of ASCII digits (the "grouping shape").
+fn group_lengths(s: &str) -> Vec<usize> {
+    let mut groups = Vec::new();
+    let mut run = 0usize;
+    for ch in s.chars() {
+        if ch.is_ascii_digit() {
+            run += 1;
+        } else if run > 0 {
+            groups.push(run);
+            run = 0;
+        }
+    }
+    if run > 0 {
+        groups.push(run);
+    }
+    groups
+}
+
+/// Does the candidate contain a grouping separator (anything but digits / `+`)?
+fn has_separator(s: &str) -> bool {
+    s.chars().any(|c| !c.is_ascii_digit() && c != '+')
+}
+
+impl PhoneRecognizer {
+    /// Emulates libphonenumber `Leniency.VALID`:
+    /// * `+CC` numbers are unambiguous → accept once valid;
+    /// * a bare digit run (no separators) → accept once valid;
+    /// * a separated national candidate → accept only if its digit-group shape
+    ///   matches the number's national formatting (rejects SSN/date shapes).
+    fn passes_leniency(candidate: &str, number: &phonenumber::PhoneNumber) -> bool {
+        let cand = candidate.trim();
+        if cand.starts_with('+') || !has_separator(cand) {
+            return true;
+        }
+        let national = number.format().mode(Mode::National).to_string();
+        group_lengths(cand) == group_lengths(&national)
     }
 }
 
@@ -97,7 +148,10 @@ impl EntityRecognizer for PhoneRecognizer {
             let candidate = m.as_str();
             for region in &self.regions {
                 match phonenumber::parse(Some(*region), candidate) {
-                    Ok(number) if phonenumber::is_valid(&number) => {
+                    Ok(number)
+                        if phonenumber::is_valid(&number)
+                            && Self::passes_leniency(candidate, &number) =>
+                    {
                         let mut r = RecognizerResult::new(
                             self.entity.clone(),
                             m.start(),
@@ -116,7 +170,7 @@ impl EntityRecognizer for PhoneRecognizer {
                         });
                         r.context = self.context.clone();
                         out.push(r);
-                        break; // first valid region wins
+                        break; // first accepting region wins
                     }
                     _ => {}
                 }

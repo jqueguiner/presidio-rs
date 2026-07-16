@@ -2,36 +2,43 @@
 
 use presidio_analyzer::{country, AnalyzerEngine, EntityRecognizer, PhoneRecognizer};
 
+fn phones(text: &str) -> usize {
+    PhoneRecognizer::default()
+        .analyze(text, &["PHONE_NUMBER".to_string()], None)
+        .len()
+}
+
 #[test]
 fn phone_recognizer_direct() {
     let rec = PhoneRecognizer::default();
     assert_eq!(rec.name(), "PhoneRecognizer");
     assert_eq!(rec.supported_entities(), vec!["PHONE_NUMBER".to_string()]);
     assert_eq!(rec.supported_language(), "en");
-
     // Entity not requested -> nothing.
     assert!(rec
         .analyze("202-555-0143", &["EMAIL_ADDRESS".to_string()], None)
         .is_empty());
+}
 
-    // US national number.
-    assert_eq!(
-        rec.analyze("call 202-555-0143 now", &["PHONE_NUMBER".to_string()], None)
-            .len(),
-        1
-    );
+#[test]
+fn phone_accepts_real_numbers_full_region_set() {
+    // US national, GB national, and international +CC numbers all detected with
+    // Presidio's full default region set (US/GB/DE/FR/IL/IN/CA/BR).
+    assert_eq!(phones("call 202-555-0143 now"), 1); // US
+    assert_eq!(phones("ring +44 20 7946 0958"), 1); // GB international
+    assert_eq!(phones("+33 6 12 34 56 78"), 1); // FR international
+    assert_eq!(phones("tel 020 7946 0958"), 1); // GB national
+    assert_eq!(phones("2025550143"), 1); // solid US run
+}
 
-    // International number with explicit +CC (works despite US/GB default regions).
-    assert_eq!(
-        rec.analyze("ring +44 20 7946 0958", &["PHONE_NUMBER".to_string()], None)
-            .len(),
-        1
-    );
-
-    // Digit run that is not a valid phone number -> nothing.
-    assert!(rec
-        .analyze("order number 12 34", &["PHONE_NUMBER".to_string()], None)
-        .is_empty());
+#[test]
+fn phone_leniency_rejects_non_phone_shapes() {
+    // The grouping-leniency filter keeps SSNs / dates / order numbers from
+    // validating as phone numbers even though permissive regions would parse
+    // them. This is what makes the full region set safe.
+    assert_eq!(phones("ssn 078-05-1120"), 0);
+    assert_eq!(phones("date 12/05/2020"), 0);
+    assert_eq!(phones("order number 12 34"), 0);
 }
 
 #[test]

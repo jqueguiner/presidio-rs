@@ -54,7 +54,7 @@ impl RecognizerRegistry {
         let mut entities: Vec<String> = self
             .recognizers
             .iter()
-            .filter(|r| r.supported_language() == language)
+            .filter(|r| r.supported_language() == language || r.is_language_agnostic())
             .flat_map(|r| r.supported_entities())
             .collect();
         entities.sort();
@@ -70,7 +70,7 @@ impl RecognizerRegistry {
     ) -> Vec<&dyn EntityRecognizer> {
         self.recognizers
             .iter()
-            .filter(|r| r.supported_language() == language)
+            .filter(|r| r.supported_language() == language || r.is_language_agnostic())
             .filter(|r| {
                 r.supported_entities()
                     .iter()

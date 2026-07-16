@@ -1,0 +1,20 @@
+[package]
+name = "presidio-ner"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Optional Candle-based NER backend for presidio-analyzer (PERSON/LOCATION/ORG/...)"
+
+[dependencies]
+presidio-analyzer = { path = "../presidio-analyzer" }
+candle-core = "0.8"
+candle-nn = "0.8"
+candle-transformers = "0.8"
+# tokenizers pulls oniguruma (small C dep) — contained to this optional crate.
+tokenizers = "0.20"
+hf-hub = "0.4"
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }

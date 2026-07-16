@@ -19,7 +19,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList};
 use serde_json::json;
 
-use presidio_analyzer::AnalyzerEngine;
+use presidio_analyzer::{AnalyzeOptions, AnalyzerEngine};
 use presidio_anonymizer::{AnonymizerEngine, OperatorConfig, RecognizerResult as AnonResult};
 
 fn normalize_entities(entities: Option<Vec<String>>) -> Option<Vec<String>> {
@@ -29,17 +29,26 @@ fn normalize_entities(entities: Option<Vec<String>>) -> Option<Vec<String>> {
 /// Detect PII entities. Returns a list of dicts with
 /// `entity_type`, `start`, `end`, `score`.
 #[pyfunction]
-#[pyo3(signature = (text, language="en", entities=None, score_threshold=None))]
+#[pyo3(signature = (text, language="en", entities=None, score_threshold=None, allow_list=None, context=None))]
+#[allow(clippy::too_many_arguments)]
 fn analyze<'py>(
     py: Python<'py>,
     text: &str,
     language: &str,
     entities: Option<Vec<String>>,
     score_threshold: Option<f64>,
+    allow_list: Option<Vec<String>>,
+    context: Option<Vec<String>>,
 ) -> PyResult<Bound<'py, PyList>> {
     let engine = AnalyzerEngine::new();
-    let ents = normalize_entities(entities);
-    let results = engine.analyze(text, language, ents.as_deref(), score_threshold);
+    let opts = AnalyzeOptions {
+        entities: normalize_entities(entities),
+        score_threshold,
+        allow_list: allow_list.unwrap_or_default(),
+        context: context.unwrap_or_default(),
+        ..Default::default()
+    };
+    let results = engine.analyze_with(text, language, &opts);
 
     let list = PyList::empty(py);
     for r in results {

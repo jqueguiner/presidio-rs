@@ -222,7 +222,7 @@ fn context_enhancer_suffix_and_floor() {
         r.analysis_explanation = Some(AnalysisExplanation::default());
         r
     }];
-    enh.enhance(&mut results, &nlp);
+    enh.enhance(&mut results, &nlp, &[]);
     assert!(results[0].score > 0.3);
 
     // score 0.0 + context -> floored to min_score_with_context (0.4)
@@ -234,7 +234,7 @@ fn context_enhancer_suffix_and_floor() {
         r.analysis_explanation = Some(AnalysisExplanation::default());
         r
     }];
-    enh2.enhance(&mut r2, &nlp2);
+    enh2.enhance(&mut r2, &nlp2, &[]);
     assert!((r2[0].score - 0.4).abs() < 1e-9);
 }
 

@@ -175,6 +175,82 @@ fn verhoeff_valid(d: &[u8]) -> bool {
     c == 0
 }
 
+const NIF_TABLE: &[u8; 23] = b"TRWAGMYFPDXBNJZSQVHLCKE";
+
+/// Spanish NIE — X/Y/Z + 7 digits + control letter (X/Y/Z map to 0/1/2).
+pub fn validate_es_nie(text: &str) -> Option<bool> {
+    let up: String = text
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .map(|c| c.to_ascii_uppercase())
+        .collect();
+    if up.len() != 9 {
+        return Some(false);
+    }
+    let lead = match up.as_bytes()[0] {
+        b'X' => '0',
+        b'Y' => '1',
+        b'Z' => '2',
+        _ => return Some(false),
+    };
+    let numstr: String = format!("{}{}", lead, &up[1..8]);
+    let num: u32 = numstr.parse().ok()?;
+    Some(NIF_TABLE[(num % 23) as usize] == up.as_bytes()[8])
+}
+
+/// Australian Company Number — 9 digits, weighted complement-mod-10 check.
+pub fn validate_au_acn(text: &str) -> Option<bool> {
+    let d = digits(text);
+    if d.len() != 9 {
+        return Some(false);
+    }
+    const W: [u32; 8] = [8, 7, 6, 5, 4, 3, 2, 1];
+    let sum: u32 = (0..8).map(|i| d[i] as u32 * W[i]).sum();
+    let check = (10 - (sum % 10)) % 10;
+    Some(check == d[8] as u32)
+}
+
+/// Australian Medicare number — 10 digits, 9th is a weighted check of the first 8.
+pub fn validate_au_medicare(text: &str) -> Option<bool> {
+    let d = digits(text);
+    if d.len() != 10 || !(2..=6).contains(&d[0]) {
+        return Some(false);
+    }
+    const W: [u32; 8] = [1, 3, 7, 9, 1, 3, 7, 9];
+    let sum: u32 = (0..8).map(|i| d[i] as u32 * W[i]).sum();
+    Some(sum % 10 == d[8] as u32)
+}
+
+/// Italian VAT (Partita IVA) — 11 digits, Luhn-style mod-10.
+pub fn validate_it_vat(text: &str) -> Option<bool> {
+    let d = digits(text);
+    if d.len() != 11 {
+        return Some(false);
+    }
+    let mut sum = 0u32;
+    for (i, &digit) in d.iter().enumerate() {
+        if i % 2 == 0 {
+            sum += digit as u32;
+        } else {
+            let mut v = digit as u32 * 2;
+            if v > 9 {
+                v -= 9;
+            }
+            sum += v;
+        }
+    }
+    Some(sum.is_multiple_of(10))
+}
+
+/// Canadian Social Insurance Number — 9 digits, Luhn.
+pub fn validate_ca_sin(text: &str) -> Option<bool> {
+    let d: String = text.chars().filter(|c| c.is_ascii_digit()).collect();
+    if d.len() != 9 {
+        return Some(false);
+    }
+    Some(crate::validators::luhn_valid(&d))
+}
+
 // ---------------------------------------------------------------------------
 // Recognizers
 // ---------------------------------------------------------------------------
@@ -307,21 +383,163 @@ pub fn us_itin() -> PatternRecognizer {
     .with_context(&["itin", "taxpayer", "individual", "tax"])
 }
 
+pub fn es_nie() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "EsNieRecognizer",
+        "ES_NIE",
+        vec![p("NIE", r"\b[XYZxyz]\d{7}[A-Za-z]\b", 0.3)],
+    )
+    .with_validator(validate_es_nie)
+    .with_context(&["nie", "extranjero", "identidad"])
+}
+
+pub fn au_acn() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "AuAcnRecognizer",
+        "AU_ACN",
+        vec![p("ACN", r"\b\d{3} ?\d{3} ?\d{3}\b", 0.1)],
+    )
+    .with_validator(validate_au_acn)
+    .with_context(&["acn", "company", "australian"])
+}
+
+pub fn au_medicare() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "AuMedicareRecognizer",
+        "AU_MEDICARE",
+        vec![p("Medicare", r"\b[2-6]\d{3} ?\d{5} ?\d\b", 0.1)],
+    )
+    .with_validator(validate_au_medicare)
+    .with_context(&["medicare"])
+}
+
+pub fn it_vat_code() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "ItVatRecognizer",
+        "IT_VAT_CODE",
+        vec![p("VAT", r"\b\d{11}\b", 0.1)],
+    )
+    .with_validator(validate_it_vat)
+    .with_context(&["vat", "iva", "partita"])
+}
+
+pub fn ca_sin() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "CaSinRecognizer",
+        "CA_SIN",
+        vec![p("SIN", r"\b\d{3} ?\d{3} ?\d{3}\b", 0.1)],
+    )
+    .with_validator(validate_ca_sin)
+    .with_context(&["sin", "social", "insurance"])
+}
+
+pub fn it_driver_license() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "ItDriverLicenseRecognizer",
+        "IT_DRIVER_LICENSE",
+        vec![p("IT DL", r"\b[A-Za-z]{2}\d{7}[A-Za-z]\b", 0.3)],
+    )
+    .with_context(&["patente", "driver", "license", "licence"])
+}
+
+pub fn in_voter() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "InVoterRecognizer",
+        "IN_VOTER",
+        vec![p("Voter ID", r"\b[A-Za-z]{3}\d{7}\b", 0.3)],
+    )
+    .with_context(&["voter", "epic", "election"])
+}
+
+pub fn in_passport() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "InPassportRecognizer",
+        "IN_PASSPORT",
+        vec![p("IN Passport", r"\b[A-Za-z]\d{7}\b", 0.3)],
+    )
+    .with_context(&["passport"])
+}
+
+pub fn in_vehicle_registration() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "InVehicleRegistrationRecognizer",
+        "IN_VEHICLE_REGISTRATION",
+        vec![p(
+            "IN Vehicle",
+            r"\b[A-Za-z]{2}\d{2}[A-Za-z]{1,2}\d{4}\b",
+            0.3,
+        )],
+    )
+    .with_context(&["vehicle", "registration", "number", "plate"])
+}
+
+pub fn sg_uen() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "SgUenRecognizer",
+        "SG_UEN",
+        vec![p("UEN", r"\b\d{8,9}[A-Za-z]\b", 0.3)],
+    )
+    .with_context(&["uen", "entity", "business"])
+}
+
+/// US passport — weak (9 digits), leans on context.
+pub fn us_passport() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "UsPassportRecognizer",
+        "US_PASSPORT",
+        vec![p("US Passport", r"\b\d{9}\b", 0.05)],
+    )
+    .with_context(&["passport", "travel", "document"])
+}
+
+/// US driver license — weak, leans on context.
+pub fn us_driver_license() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "UsDriverLicenseRecognizer",
+        "US_DRIVER_LICENSE",
+        vec![p("US DL", r"\b[A-Za-z]\d{6,12}\b", 0.3)],
+    )
+    .with_context(&["driver", "license", "licence", "dl"])
+}
+
+/// US bank account — very weak (8–17 digits), leans on context.
+pub fn us_bank_number() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "UsBankRecognizer",
+        "US_BANK_NUMBER",
+        vec![p("US Bank", r"\b\d{8,17}\b", 0.05)],
+    )
+    .with_context(&["bank", "account", "acct", "routing", "checking", "savings"])
+}
+
 /// Every country-specific recognizer, ready to register.
 pub fn all_country() -> Vec<Box<dyn EntityRecognizer>> {
     vec![
         Box::new(uk_nhs()),
         Box::new(uk_nino()),
         Box::new(es_nif()),
+        Box::new(es_nie()),
         Box::new(pl_pesel()),
         Box::new(sg_nric()),
+        Box::new(sg_uen()),
         Box::new(au_abn()),
         Box::new(au_tfn()),
+        Box::new(au_acn()),
+        Box::new(au_medicare()),
         Box::new(in_aadhaar()),
         Box::new(in_pan()),
+        Box::new(in_voter()),
+        Box::new(in_passport()),
+        Box::new(in_vehicle_registration()),
         Box::new(it_fiscal_code()),
+        Box::new(it_vat_code()),
+        Box::new(it_driver_license()),
         Box::new(fi_hetu()),
+        Box::new(ca_sin()),
         Box::new(us_itin()),
+        Box::new(us_passport()),
+        Box::new(us_driver_license()),
+        Box::new(us_bank_number()),
     ]
 }
 
@@ -381,5 +599,42 @@ mod tests {
         assert_eq!(validate_fi_hetu("131052-308U"), Some(false));
         assert_eq!(validate_fi_hetu("131052X308T"), Some(false));
         assert_eq!(validate_fi_hetu("bad"), Some(false));
+    }
+
+    #[test]
+    fn es_nie_check() {
+        assert_eq!(validate_es_nie("X1234567L"), Some(true));
+        assert_eq!(validate_es_nie("X1234567A"), Some(false));
+        assert_eq!(validate_es_nie("A1234567L"), Some(false)); // bad prefix
+        assert_eq!(validate_es_nie("bad"), Some(false));
+    }
+
+    #[test]
+    fn au_acn_check() {
+        assert_eq!(validate_au_acn("004 085 616"), Some(true));
+        assert_eq!(validate_au_acn("004 085 617"), Some(false));
+        assert_eq!(validate_au_acn("1"), Some(false));
+    }
+
+    #[test]
+    fn au_medicare_check() {
+        assert_eq!(validate_au_medicare("2428778132"), Some(true));
+        assert_eq!(validate_au_medicare("2428778142"), Some(false));
+        assert_eq!(validate_au_medicare("9428778132"), Some(false)); // bad first digit
+        assert_eq!(validate_au_medicare("123"), Some(false));
+    }
+
+    #[test]
+    fn it_vat_check() {
+        assert_eq!(validate_it_vat("12345670785"), Some(true));
+        assert_eq!(validate_it_vat("12345670786"), Some(false));
+        assert_eq!(validate_it_vat("123"), Some(false));
+    }
+
+    #[test]
+    fn ca_sin_check() {
+        assert_eq!(validate_ca_sin("046 454 286"), Some(true));
+        assert_eq!(validate_ca_sin("046 454 287"), Some(false));
+        assert_eq!(validate_ca_sin("12"), Some(false));
     }
 }

@@ -1,0 +1,28 @@
+[package]
+name = "presidio-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "HTTP service exposing presidio-rust analyze/anonymize (Presidio-style REST API)"
+
+[lib]
+name = "presidio_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "presidio-server"
+path = "src/main.rs"
+
+[dependencies]
+presidio-analyzer = { path = "../presidio-analyzer" }
+presidio-anonymizer = { path = "../presidio-anonymizer" }
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+tower = { version = "0.5", features = ["util"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }

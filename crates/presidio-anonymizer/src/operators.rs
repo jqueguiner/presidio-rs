@@ -221,3 +221,169 @@ impl Operator for Custom {
         Ok((self.func)(text))
     }
 }
+
+/// `surrogate` — replace an entity with a realistic, format-preserving fake value
+/// chosen deterministically from the original text (so the same input always maps
+/// to the same surrogate, giving consistent de-identification).
+///
+/// This is a self-contained, local port of the *idea* behind Presidio's
+/// `surrogate_ahds` operator. The upstream operator delegates to the Azure Health
+/// Data Services de-identification API; that external dependency is intentionally
+/// not reproduced here.
+pub struct Surrogate;
+
+impl Operator for Surrogate {
+    fn operator_name(&self) -> &str {
+        "surrogate"
+    }
+    fn operator_type(&self) -> OperatorType {
+        OperatorType::Anonymize
+    }
+    fn operate(&self, text: &str, params: &HashMap<String, Value>) -> anyhow::Result<String> {
+        let entity = str_param(params, "entity_type").unwrap_or("ENTITY");
+        let mut rng = DetRng::seed_from_text(text);
+        Ok(surrogate_value(entity, &mut rng))
+    }
+}
+
+/// Deterministic SplitMix64 seeded from a SHA-256 of the source text.
+struct DetRng(u64);
+
+impl DetRng {
+    fn seed_from_text(text: &str) -> Self {
+        let mut h = Sha256::new();
+        h.update(text.as_bytes());
+        let d = h.finalize();
+        let mut b = [0u8; 8];
+        b.copy_from_slice(&d[0..8]);
+        Self(u64::from_le_bytes(b))
+    }
+    fn next(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9E37_79B9_7F4A_7C15);
+        let mut z = self.0;
+        z = (z ^ (z >> 30)).wrapping_mul(0xBF58_476D_1CE4_E5B9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94D0_49BB_1331_11EB);
+        z ^ (z >> 31)
+    }
+    fn pick<'a>(&mut self, items: &[&'a str]) -> &'a str {
+        items[(self.next() as usize) % items.len()]
+    }
+    fn digits(&mut self, n: usize) -> String {
+        (0..n)
+            .map(|_| char::from(b'0' + (self.next() % 10) as u8))
+            .collect()
+    }
+    fn range(&mut self, lo: u64, hi: u64) -> u64 {
+        lo + self.next() % (hi - lo)
+    }
+}
+
+const FIRST: &[&str] = &[
+    "James",
+    "Mary",
+    "Robert",
+    "Patricia",
+    "John",
+    "Jennifer",
+    "Michael",
+    "Linda",
+    "David",
+    "Elizabeth",
+    "Maria",
+    "Wei",
+    "Ahmed",
+    "Sofia",
+    "Yuki",
+    "Omar",
+];
+const LAST: &[&str] = &[
+    "Smith",
+    "Johnson",
+    "Williams",
+    "Brown",
+    "Garcia",
+    "Miller",
+    "Davis",
+    "Rodriguez",
+    "Martinez",
+    "Nguyen",
+    "Kim",
+    "Khan",
+    "Rossi",
+    "Silva",
+    "Cohen",
+    "Dubois",
+];
+const CITIES: &[&str] = &[
+    "Springfield",
+    "Riverton",
+    "Fairview",
+    "Lakeside",
+    "Milton",
+    "Greenville",
+    "Bristol",
+    "Ashford",
+    "Kingsley",
+    "Oakdale",
+];
+const ORGS: &[&str] = &[
+    "Acme Corp",
+    "Globex",
+    "Initech",
+    "Umbrella Ltd",
+    "Soylent Inc",
+    "Hooli",
+    "Vandelay",
+    "Wonka Industries",
+];
+
+fn luhn_valid_card(rng: &mut DetRng) -> String {
+    let mut digits: Vec<u32> = (0..15).map(|_| (rng.next() % 10) as u32).collect();
+    // Compute the Luhn check digit for a 16-digit number.
+    let mut sum = 0u32;
+    for (i, &d) in digits.iter().enumerate() {
+        // Position from the right in the final 16-digit number for index i is (15 - i);
+        // doubling applies to odd positions from the right (0-based even index here).
+        let mut v = d;
+        if i % 2 == 0 {
+            v *= 2;
+            if v > 9 {
+                v -= 9;
+            }
+        }
+        sum += v;
+    }
+    let check = (10 - (sum % 10)) % 10;
+    digits.push(check);
+    digits.iter().map(|d| char::from(b'0' + *d as u8)).collect()
+}
+
+fn surrogate_value(entity: &str, rng: &mut DetRng) -> String {
+    match entity {
+        "PERSON" => format!("{} {}", rng.pick(FIRST), rng.pick(LAST)),
+        "EMAIL_ADDRESS" => format!(
+            "{}.{}@example.com",
+            rng.pick(FIRST).to_lowercase(),
+            rng.pick(LAST).to_lowercase()
+        ),
+        "PHONE_NUMBER" => format!("+1 ({}) {}-{}", rng.digits(3), rng.digits(3), rng.digits(4)),
+        "CREDIT_CARD" => luhn_valid_card(rng),
+        "US_SSN" => format!("{}-{}-{}", rng.digits(3), rng.digits(2), rng.digits(4)),
+        "IP_ADDRESS" => format!(
+            "{}.{}.{}.{}",
+            rng.range(1, 224),
+            rng.next() % 256,
+            rng.next() % 256,
+            rng.range(1, 255)
+        ),
+        "LOCATION" => rng.pick(CITIES).to_string(),
+        "ORGANIZATION" | "NRP" => rng.pick(ORGS).to_string(),
+        "DATE_TIME" => format!(
+            "{:04}-{:02}-{:02}",
+            rng.range(1950, 2020),
+            rng.range(1, 13),
+            rng.range(1, 29)
+        ),
+        other => format!("<{other}>"),
+    }
+}

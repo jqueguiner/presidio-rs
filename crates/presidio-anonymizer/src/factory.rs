@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 
 use crate::operator::{Operator, OperatorType};
-use crate::operators::{Decrypt, Encrypt, Hash, Keep, Mask, Redact, Replace};
+use crate::operators::{Decrypt, Encrypt, Hash, Keep, Mask, Redact, Replace, Surrogate};
 
 pub struct OperatorsFactory {
     anonymizers: HashMap<String, Box<dyn Operator>>,
@@ -32,6 +32,7 @@ impl OperatorsFactory {
         f.add(Box::new(Keep));
         f.add(Box::new(Encrypt));
         f.add(Box::new(Decrypt));
+        f.add(Box::new(Surrogate));
         f
     }
 

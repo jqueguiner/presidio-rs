@@ -78,9 +78,11 @@ let result = anon.anonymize(text, spans, &ops).unwrap();
 `DATE_TIME`, `US_SSN`.
 
 **Phone:** `PHONE_NUMBER` via the [`phonenumber`](https://crates.io/crates/phonenumber)
-crate (Rust libphonenumber) — parses + validates, default regions US/GB, and any
-`+CC` international number regardless of region. `PhoneRecognizer.regions` is
-configurable.
+crate (Rust libphonenumber). Runs Presidio's full default region set
+(`US/GB/DE/FR/IL/IN/CA/BR`) and emulates libphonenumber's `Leniency.VALID`
+grouping check so SSNs/dates don't validate as phone numbers in permissive
+regions. `+CC` international numbers are detected regardless of region.
+`PhoneRecognizer.regions` is configurable.
 
 **Country-specific** (checksum-validated → promoted to 1.0): `UK_NHS` (mod-11),
 `ES_NIF`, `PL_PESEL`, `SG_NRIC_FIN`, `AU_ABN` (mod-89), `AU_TFN`, `IN_AADHAAR`

@@ -172,27 +172,42 @@ on the engine's factory via `factory_mut()`.
 
 ## Port status
 
-Ported and tested:
-- Pattern-recognizer framework, registry, analyzer-engine orchestration
-- Per-call analyze options: `allow_list` (exact/regex), ad-hoc recognizers,
-  supplemental `context` — via `AnalyzeOptions` / `analyze_with` (also exposed on
-  the CLI `--allow-list`/`--context` and the Python `analyze(allow_list=, context=)`)
-- Checksum validation (Luhn / IBAN mod-97 / Base58Check / NHS / PESEL / SG NRIC /
-  AU ABN+TFN / Aadhaar Verhoeff / FI HETU) and result promotion
-- `PHONE_NUMBER` via real libphonenumber (`phonenumber` crate)
-- Lemma context-aware score enhancement
-- Conflict resolution (highest score, longest span, non-overlapping)
-- Full anonymizer/deanonymizer operator set incl. AES-CBC encrypt/decrypt
+### Ported and tested ✅
 
-Simplified vs. upstream (contributions welcome):
-- **NER** — trait seam in place; no bundled model (upstream bundles spaCy). This
-  is the main behavioural gap: `PERSON`/`LOCATION`/`ORGANIZATION` need an NLP
-  backend (e.g. `rust-bert`/ONNX) wired via `with_nlp_engine`.
+| Area | Status |
+|------|--------|
+| Pattern-recognizer framework, registry, analyzer-engine orchestration | ✅ |
+| ~54 entity types; 27 checksum-validated national IDs across ~20 countries | ✅ (parity+) |
+| Checksums: Luhn, IBAN mod-97, Base58Check, NHS, PESEL, SG NRIC, AU ABN/TFN/ACN/Medicare, Aadhaar (Verhoeff), FI HETU, BR CPF/CNPJ, NL BSN, TR, BE, PT, CN (ISO 7064), RU SNILS, DE tax-id, SE, ZA, KR, ES NIF/NIE, IT VAT, CA SIN | ✅ |
+| `PHONE_NUMBER` — real libphonenumber (`phonenumber`), full default region set + `Leniency.VALID` grouping emulation | ✅ (parity) |
+| Anonymizer operators: replace, redact, mask, hash, keep, encrypt, decrypt, custom, **surrogate** (local) | ✅ (parity) |
+| Deanonymizer + AES-CBC encrypt/decrypt | ✅ |
+| Per-call options: `allow_list` (exact/regex), ad-hoc recognizers, supplemental `context` | ✅ |
+| Context-aware score enhancement, conflict resolution | ✅ |
+| **NER** (`PERSON`/`LOCATION`/`ORGANIZATION`/`NRP`) — optional pure-Rust Candle crate (`presidio-ner`), configurable model/labels/threshold | ✅ (English model; CI-verified) |
+| **Multi-language** — pattern/checksum/phone PII works for any language code; **per-language NER routing** (`with_nlp_engine_for`) | ✅ |
+| **HTTP service + Docker** — `presidio-server` (Presidio-style REST API) | ✅ |
+| **Python bindings** — `presidio-rs` on PyPI (PyO3/maturin) | ✅ |
+
+### Enabled by the seam, needs data/models (not architecture)
+
+- **Per-language NER weights** (e.g. a French `camembert-ner`) — wire via
+  `with_nlp_engine_for("fr", …)`.
+- **Per-language context-word packs** and a **real lemmatizer** — supply a
+  language-specific `NlpEngine` (the default one only lowercases).
 - **DATE_TIME** — regex-based; upstream also uses a date NER.
-- **Country-specific recognizers** — a representative, checksum-validated subset
-  is in; the full 18-country set under `predefined_recognizers/country_specific`
-  is not yet exhaustive.
-- **presidio-image-redactor** / **presidio-structured** — not yet ported.
+
+### Out of scope — will NOT be covered ❌
+
+These are **separate Presidio products** with fundamentally different dependency
+footprints (OCR, image/dataframe tooling). They are intentionally **not** part of
+this port and there are no plans to add them:
+
+- **`presidio-image-redactor`** — OCR + image bounding-box redaction. ❌ Not covered.
+- **`presidio-structured`** — tabular / JSON / DataFrame de-identification. ❌ Not covered.
+
+Everything else from `presidio-analyzer` and `presidio-anonymizer` (plus REST
+services and Python bindings) is ported.
 
 ## Testing
 

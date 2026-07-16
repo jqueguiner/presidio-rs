@@ -17,7 +17,22 @@ crates/
   presidio-analyzer/     # PII detection  (port of presidio-analyzer)
   presidio-anonymizer/   # (de)anonymization (port of presidio-anonymizer)
   presidio-cli/          # `presidio` binary tying the two together
+  presidio-server/       # HTTP service (Presidio-style REST API)
+  presidio-ner/          # optional Candle NER backend (heavy; opt-in)
 ```
+
+## HTTP server
+
+```bash
+PORT=8080 cargo run -p presidio-server           # or: docker build -f crates/presidio-server/Dockerfile -t presidio-server . && docker run -p 8080:8080 presidio-server
+curl -s localhost:8080/analyze -H 'content-type: application/json' \
+  -d '{"text":"mail a@b.com, ssn 078-05-1120"}'
+curl -s localhost:8080/anonymize_text -H 'content-type: application/json' \
+  -d '{"text":"mail a@b.com","operator":"redact"}'
+```
+Endpoints: `GET /health`, `GET /supportedentities?language=en`, `POST /analyze`,
+`POST /anonymize` (Presidio-shaped `{text, analyzer_results, anonymizers}`),
+`POST /anonymize_text` (analyze + anonymize in one call).
 
 ## Quick start
 

@@ -37,7 +37,7 @@ pub mod recognizer;
 pub mod registry;
 pub mod validators;
 
-pub use analyzer_engine::AnalyzerEngine;
+pub use analyzer_engine::{AllowListMatch, AnalyzeOptions, AnalyzerEngine};
 pub use context::LemmaContextAwareEnhancer;
 pub use entities::{AnalysisExplanation, RecognizerResult, MAX_SCORE, MIN_SCORE};
 pub use ner_recognizer::NerRecognizer;

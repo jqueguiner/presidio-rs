@@ -30,13 +30,25 @@ impl Default for LemmaContextAwareEnhancer {
 }
 
 impl LemmaContextAwareEnhancer {
-    pub fn enhance(&self, results: &mut [RecognizerResult], nlp: &NlpArtifacts) {
+    /// Boost result scores when a supportive context word is found. `supplemental`
+    /// holds extra context words provided per-call (Presidio's `context` arg),
+    /// treated as if present near every entity.
+    pub fn enhance(
+        &self,
+        results: &mut [RecognizerResult],
+        nlp: &NlpArtifacts,
+        supplemental: &[String],
+    ) {
+        let supp: Vec<String> = supplemental.iter().map(|w| w.to_lowercase()).collect();
         for r in results.iter_mut() {
             if r.context.is_empty() || r.score >= 1.0 {
                 continue;
             }
             let ctx: Vec<String> = r.context.iter().map(|w| w.to_lowercase()).collect();
-            if let Some(hit) = self.find_supportive_word(nlp, r.start, r.end, &ctx) {
+            let hit = self
+                .find_supportive_word(nlp, r.start, r.end, &ctx)
+                .or_else(|| ctx.iter().find(|c| supp.contains(c)).cloned());
+            if let Some(hit) = hit {
                 let mut new_score = (r.score + self.context_similarity_factor).min(1.0);
                 if new_score < self.min_score_with_context {
                     new_score = self.min_score_with_context;

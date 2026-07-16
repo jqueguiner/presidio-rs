@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use presidio_analyzer::AnalyzerEngine;
+use presidio_analyzer::{AnalyzeOptions, AnalyzerEngine};
 use presidio_anonymizer::{AnonymizerEngine, OperatorConfig, RecognizerResult as AnonResult};
 use serde_json::{json, Value};
 
@@ -46,6 +46,12 @@ struct AnalyzeArgs {
     /// Drop results below this score.
     #[arg(long)]
     min_score: Option<f64>,
+    /// Comma-separated words to treat as non-PII (removed from results).
+    #[arg(long)]
+    allow_list: Option<String>,
+    /// Comma-separated extra context words that boost nearby results.
+    #[arg(long)]
+    context: Option<String>,
 }
 
 #[derive(Parser)]
@@ -93,15 +99,27 @@ fn main() -> Result<()> {
     }
 }
 
+fn parse_csv(s: &Option<String>) -> Vec<String> {
+    s.as_ref()
+        .map(|s| {
+            s.split(',')
+                .map(|w| w.trim().to_string())
+                .filter(|w| !w.is_empty())
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
 fn run_analyze(args: AnalyzeArgs) -> Result<()> {
     let engine = AnalyzerEngine::new();
-    let entities = parse_entities(&args.entities);
-    let results = engine.analyze(
-        &args.text,
-        &args.language,
-        entities.as_deref(),
-        args.min_score,
-    );
+    let opts = AnalyzeOptions {
+        entities: parse_entities(&args.entities),
+        score_threshold: args.min_score,
+        allow_list: parse_csv(&args.allow_list),
+        context: parse_csv(&args.context),
+        ..Default::default()
+    };
+    let results = engine.analyze_with(&args.text, &args.language, &opts);
     println!("{}", serde_json::to_string_pretty(&results)?);
     Ok(())
 }

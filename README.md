@@ -85,9 +85,11 @@ regions. `+CC` international numbers are detected regardless of region.
 `PhoneRecognizer.regions` is configurable.
 
 **Country-specific** (checksum-validated → promoted to 1.0): `UK_NHS` (mod-11),
-`ES_NIF`, `PL_PESEL`, `SG_NRIC_FIN`, `AU_ABN` (mod-89), `AU_TFN`, `IN_AADHAAR`
-(Verhoeff), `FI_PERSONAL_IDENTITY_CODE`. **Pattern-only:** `UK_NINO`, `IN_PAN`,
-`IT_FISCAL_CODE`, `US_ITIN`.
+`ES_NIF`, `ES_NIE`, `PL_PESEL`, `SG_NRIC_FIN`, `AU_ABN` (mod-89), `AU_TFN`,
+`AU_ACN`, `AU_MEDICARE`, `IN_AADHAAR` (Verhoeff), `FI_PERSONAL_IDENTITY_CODE`,
+`IT_VAT_CODE`, `CA_SIN` (Luhn). **Pattern-only:** `UK_NINO`, `IN_PAN`, `IN_VOTER`,
+`IN_PASSPORT`, `IN_VEHICLE_REGISTRATION`, `IT_FISCAL_CODE`, `IT_DRIVER_LICENSE`,
+`SG_UEN`, `US_ITIN`, `US_PASSPORT`, `US_DRIVER_LICENSE`, `US_BANK_NUMBER`.
 
 **NER** entities (`PERSON`, `LOCATION`, `ORGANIZATION`, `NRP`) are wired through
 `NerRecognizer` and activate once an NLP engine with NER is set.
@@ -126,6 +128,9 @@ on the engine's factory via `factory_mut()`.
 
 Ported and tested:
 - Pattern-recognizer framework, registry, analyzer-engine orchestration
+- Per-call analyze options: `allow_list` (exact/regex), ad-hoc recognizers,
+  supplemental `context` — via `AnalyzeOptions` / `analyze_with` (also exposed on
+  the CLI `--allow-list`/`--context` and the Python `analyze(allow_list=, context=)`)
 - Checksum validation (Luhn / IBAN mod-97 / Base58Check / NHS / PESEL / SG NRIC /
   AU ABN+TFN / Aadhaar Verhoeff / FI HETU) and result promotion
 - `PHONE_NUMBER` via real libphonenumber (`phonenumber` crate)

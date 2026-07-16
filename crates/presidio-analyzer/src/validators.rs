@@ -214,6 +214,7 @@ mod tests {
             None
         );
         assert_eq!(validate_crypto("0x1234"), Some(false)); // wrong length
+
         // Bech32 SegWit (BTC/LTC): shape-only -> None.
         assert_eq!(
             validate_crypto("bc1qar0srrr7xfkvy5l643lydnw9re59gtzzwf5mdq"),

@@ -40,11 +40,19 @@ pub fn crypto() -> PatternRecognizer {
         "CRYPTO",
         vec![
             // Legacy Base58: BTC P2PKH/P2SH (1/3) and LTC (L/M/3).
-            p("Crypto (Base58 BTC/LTC)", r"\b[13LM][a-km-zA-HJ-NP-Z1-9]{25,39}\b", 0.5),
+            p(
+                "Crypto (Base58 BTC/LTC)",
+                r"\b[13LM][a-km-zA-HJ-NP-Z1-9]{25,39}\b",
+                0.5,
+            ),
             // Ethereum: 0x + 40 hex nibbles.
             p("Crypto (ETH)", r"\b0[xX][a-fA-F0-9]{40}\b", 0.5),
             // Bech32 SegWit: BTC (bc1) / LTC (ltc1) with the bech32 data charset.
-            p("Crypto (bech32 BTC/LTC)", r"\b(?:bc1|ltc1)[ac-hj-np-z02-9]{8,87}\b", 0.5),
+            p(
+                "Crypto (bech32 BTC/LTC)",
+                r"\b(?:bc1|ltc1)[ac-hj-np-z02-9]{8,87}\b",
+                0.5,
+            ),
         ],
     )
     .with_validator(validators::validate_crypto)

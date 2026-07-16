@@ -26,10 +26,12 @@
 
 pub mod analyzer_engine;
 pub mod context;
+pub mod country;
 pub mod entities;
 pub mod ner_recognizer;
 pub mod nlp;
 pub mod pattern;
+pub mod phone_recognizer;
 pub mod predefined;
 pub mod recognizer;
 pub mod registry;
@@ -41,5 +43,6 @@ pub use entities::{AnalysisExplanation, RecognizerResult, MAX_SCORE, MIN_SCORE};
 pub use ner_recognizer::NerRecognizer;
 pub use nlp::{NerEntity, NlpArtifacts, NlpEngine, SimpleNlpEngine, Token};
 pub use pattern::Pattern;
+pub use phone_recognizer::PhoneRecognizer;
 pub use recognizer::{EntityRecognizer, PatternRecognizer, Validator};
 pub use registry::RecognizerRegistry;

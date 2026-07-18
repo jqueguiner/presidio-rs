@@ -34,6 +34,32 @@ Endpoints: `GET /health`, `GET /supportedentities?language=en`, `POST /analyze`,
 `POST /anonymize` (Presidio-shaped `{text, analyzer_results, anonymizers}`),
 `POST /anonymize_text` (analyze + anonymize in one call).
 
+## Install
+
+All crates are published on [crates.io](https://crates.io/crates/presidio-analyzer).
+
+```bash
+# Library: PII detection + anonymization
+cargo add presidio-analyzer presidio-anonymizer
+
+# CLI  (installs the `presidio` binary)
+cargo install presidio-cli
+
+# HTTP server
+cargo install presidio-server
+```
+
+Enable gazetteer recognizers with cargo features (data is downloaded and cached
+on first use — see the Gazetteers section):
+
+```bash
+cargo add presidio-analyzer --features gazetteers-all
+# or pick datasets individually:
+cargo add presidio-analyzer --features names-gazetteer,cities-gazetteer,orgs-gazetteer,tickers-gazetteer
+```
+
+Python users: `pip install presidio-rs` (PyPI wheel built with maturin).
+
 ## Quick start
 
 ```bash

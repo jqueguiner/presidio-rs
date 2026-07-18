@@ -6,6 +6,9 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "PII detection engine — Rust port of presidio-analyzer"
+# Parquet files are the canonical dataset source-of-truth; the build only needs
+# the derived .txt.gz, so keep the published crate lean.
+exclude = ["data/*.parquet", "data/README.md"]
 
 [dependencies]
 regex.workspace = true

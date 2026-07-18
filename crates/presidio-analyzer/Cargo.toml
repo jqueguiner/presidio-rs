@@ -20,6 +20,9 @@ phonenumber = "0.3"
 flate2 = { version = "1", optional = true }
 ureq = { version = "2", default-features = false, features = ["tls"], optional = true }
 dirs = { version = "5", optional = true }
+ort = { version = "=2.0.0-rc.10", optional = true, default-features = false, features = ["load-dynamic", "ndarray"] }
+tokenizers = { version = "0.20", optional = true, default-features = false, features = ["onig"] }
+ndarray = { version = "0.16", optional = true }
 
 [features]
 # Gazetteer recognizers backed by large reference-data lists. Each dataset is a
@@ -31,6 +34,9 @@ dirs = { version = "5", optional = true }
 #   orgs-gazetteer     ORGANIZATION            (~3.12M, GLEIF)
 #   tickers-gazetteer  STOCK_TICKER            (~9.9k, SEC)
 _gazetteer = ["dep:flate2", "dep:ureq", "dep:dirs"]
+# ONNX part-of-speech NLP engine (OnnxNlpEngine): a quantized UPOS token-classifier
+# via onnxruntime, to drive the gazetteer POS gate. Pulls onnxruntime + tokenizers.
+onnx-pos = ["dep:ort", "dep:tokenizers", "dep:ndarray"]
 names-gazetteer = ["_gazetteer"]
 cities-gazetteer = ["_gazetteer"]
 orgs-gazetteer = ["_gazetteer"]

@@ -13,3 +13,10 @@ serde.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 phonenumber = "0.3"
+flate2 = { version = "1", optional = true }
+
+[features]
+# Embeds ~196k first names + ~794k surnames (multi-country census DB) as
+# gazetteer recognizers. Off by default — pulls in flate2 and ~2.6 MB of
+# compressed data.
+names-gazetteer = ["dep:flate2"]

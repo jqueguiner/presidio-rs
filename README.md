@@ -115,6 +115,23 @@ types total.
 **NER** entities (`PERSON`, `LOCATION`, `ORGANIZATION`, `NRP`) are wired through
 `NerRecognizer` and activate once an NLP engine with NER is set.
 
+**Name gazetteers** (optional, `names-gazetteer` feature) — `FIRST_NAME` and
+`LAST_NAME` recognizers backed by census name lists (~196k first names, ~794k
+surnames; probabilities/ranks stripped). Exact token lookup via a `HashSet`
+(`GazetteerRecognizer`), not regex, so the large sets stay fast. Off by default
+(pulls `flate2` + ~2.6 MB embedded gzipped data). Register explicitly:
+
+```rust
+use presidio_analyzer::{gazetteer, RecognizerRegistry, AnalyzerEngine};
+let mut reg = RecognizerRegistry::with_predefined("en");
+for g in gazetteer::all_gazetteers() { reg.add(g); }
+let engine = AnalyzerEngine::new().with_registry(reg);
+```
+
+Base score is medium/standalone (0.3) — name lists are precision-limited (many
+names are also common words), so gate on downstream conflict resolution or raise
+the analyzer threshold for high-precision use.
+
 ### Operators ported
 
 `replace`, `redact`, `mask`, `hash` (sha256/sha512), `keep`, `encrypt`,

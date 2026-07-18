@@ -16,3 +16,9 @@ presidio-analyzer = { path = "../../crates/presidio-analyzer" }
 presidio-anonymizer = { path = "../../crates/presidio-anonymizer" }
 pyo3 = { version = "0.29", features = ["extension-module", "abi3-py38"] }
 serde_json = { workspace = true }
+
+[features]
+# Compile the reference-data gazetteers (names/cities/orgs/tickers) into the
+# module. Off by default — enabling it pulls large data (GLEIF orgs ~23 MB) that
+# loads at engine construction. Build with: maturin build --features gazetteers
+gazetteers = ["presidio-analyzer/gazetteers-all"]

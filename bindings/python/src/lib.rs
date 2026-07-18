@@ -128,11 +128,77 @@ fn supported_entities(language: &str) -> Vec<String> {
     AnalyzerEngine::new().get_supported_entities(language)
 }
 
+/// A persistent analyzer. Builds the engine — and loads any compiled-in
+/// gazetteers (names/cities/orgs, feature `gazetteers`) — **once**, then reuses
+/// it across calls. The module-level [`analyze`] function rebuilds the engine
+/// every call, which reloads the multi-million-entry gazetteer sets each time;
+/// use this class for repeated analysis and for serving.
+///
+/// ```python
+/// from presidio_rs import Analyzer
+/// az = Analyzer()
+/// az.analyze("Ada Lovelace lives in Turin", entities=["FIRST_NAME", "LOCATION"])
+/// ```
+#[pyclass]
+struct Analyzer {
+    engine: AnalyzerEngine,
+}
+
+#[pymethods]
+impl Analyzer {
+    #[new]
+    fn new() -> Self {
+        Analyzer {
+            engine: AnalyzerEngine::new(),
+        }
+    }
+
+    /// Detect PII. Same return shape as the module-level `analyze`.
+    #[pyo3(signature = (text, language="en", entities=None, score_threshold=None, allow_list=None, context=None))]
+    #[allow(clippy::too_many_arguments)]
+    fn analyze<'py>(
+        &self,
+        py: Python<'py>,
+        text: &str,
+        language: &str,
+        entities: Option<Vec<String>>,
+        score_threshold: Option<f64>,
+        allow_list: Option<Vec<String>>,
+        context: Option<Vec<String>>,
+    ) -> PyResult<Bound<'py, PyList>> {
+        let opts = AnalyzeOptions {
+            entities: normalize_entities(entities),
+            score_threshold,
+            allow_list: allow_list.unwrap_or_default(),
+            context: context.unwrap_or_default(),
+            ..Default::default()
+        };
+        let results = self.engine.analyze_with(text, language, &opts);
+        let list = PyList::empty(py);
+        for r in results {
+            let d = PyDict::new(py);
+            d.set_item("entity_type", &r.entity_type)?;
+            d.set_item("start", r.start)?;
+            d.set_item("end", r.end)?;
+            d.set_item("score", r.score)?;
+            list.append(d)?;
+        }
+        Ok(list)
+    }
+
+    /// Entity types this analyzer can detect for `language`.
+    #[pyo3(signature = (language="en"))]
+    fn supported_entities(&self, language: &str) -> Vec<String> {
+        self.engine.get_supported_entities(language)
+    }
+}
+
 #[pymodule]
 fn presidio_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     m.add_function(wrap_pyfunction!(analyze, m)?)?;
     m.add_function(wrap_pyfunction!(anonymize, m)?)?;
     m.add_function(wrap_pyfunction!(supported_entities, m)?)?;
+    m.add_class::<Analyzer>()?;
     Ok(())
 }

@@ -85,6 +85,7 @@ impl AnonymizerEngine {
                 entity_type: r.entity_type.clone(),
                 text: new_text,
                 operator: config.operator_name.clone(),
+                score: Some(r.score),
             });
             last = r.end;
         }

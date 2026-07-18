@@ -80,6 +80,12 @@ pub struct OperatorResult {
     pub entity_type: String,
     pub text: String,
     pub operator: String,
+    /// Confidence score carried over from the originating `RecognizerResult`
+    /// (audit/compliance traceability, upstream issue #2057). `None` for
+    /// deanonymization, where no detection score exists. Omitted from JSON when
+    /// absent, so existing consumers are unaffected.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub score: Option<f64>,
 }
 
 /// Output of an (de)anonymization run: the transformed text and per-entity items.

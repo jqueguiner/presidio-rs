@@ -26,6 +26,22 @@ fn normalize_entities(entities: Option<Vec<String>>) -> Option<Vec<String>> {
     entities.map(|v| v.into_iter().map(|s| s.to_uppercase()).collect())
 }
 
+/// Map UTF-8 **byte** offsets (the analyzer's native indexing) to **character**
+/// offsets, so `text[start:end]` in Python is correct on non-ASCII text — this
+/// matches the offset semantics of the reference Python presidio. Returns a
+/// `byte_index -> char_index` table with `text.len() + 1` entries (char-boundary
+/// positions are populated; results always land on boundaries).
+fn byte_to_char_map(text: &str) -> Vec<usize> {
+    let mut map = vec![0usize; text.len() + 1];
+    let mut ci = 0;
+    for (bi, _) in text.char_indices() {
+        map[bi] = ci;
+        ci += 1;
+    }
+    map[text.len()] = ci;
+    map
+}
+
 /// Detect PII entities. Returns a list of dicts with
 /// `entity_type`, `start`, `end`, `score`.
 #[pyfunction]
@@ -50,12 +66,13 @@ fn analyze<'py>(
     };
     let results = engine.analyze_with(text, language, &opts);
 
+    let cmap = byte_to_char_map(text);
     let list = PyList::empty(py);
     for r in results {
         let d = PyDict::new(py);
         d.set_item("entity_type", &r.entity_type)?;
-        d.set_item("start", r.start)?;
-        d.set_item("end", r.end)?;
+        d.set_item("start", cmap[r.start])?;
+        d.set_item("end", cmap[r.end])?;
         d.set_item("score", r.score)?;
         list.append(d)?;
     }
@@ -174,12 +191,13 @@ impl Analyzer {
             ..Default::default()
         };
         let results = self.engine.analyze_with(text, language, &opts);
+        let cmap = byte_to_char_map(text);
         let list = PyList::empty(py);
         for r in results {
             let d = PyDict::new(py);
             d.set_item("entity_type", &r.entity_type)?;
-            d.set_item("start", r.start)?;
-            d.set_item("end", r.end)?;
+            d.set_item("start", cmap[r.start])?;
+            d.set_item("end", cmap[r.end])?;
             d.set_item("score", r.score)?;
             list.append(d)?;
         }

@@ -239,6 +239,31 @@ fn context_enhancer_suffix_and_floor() {
 }
 
 #[test]
+fn imei_and_vin_detected_end_to_end() {
+    let engine = AnalyzerEngine::default();
+
+    // Valid IMEI (Luhn) promoted to 1.0.
+    let imei = engine.analyze("device imei 49-015420-323751-8", "en", None, None);
+    let hit = imei.iter().find(|r| r.entity_type == "IMEI").unwrap();
+    assert!((hit.score - 1.0).abs() < 1e-9);
+    // Bad Luhn -> dropped.
+    assert!(engine
+        .analyze("imei 490154203237519", "en", None, None)
+        .iter()
+        .all(|r| r.entity_type != "IMEI"));
+
+    // Valid North-American VIN promoted to 1.0.
+    let vin = engine.analyze("vin 1M8GDM9AXKP042788", "en", None, None);
+    let hit = vin.iter().find(|r| r.entity_type == "VIN").unwrap();
+    assert!((hit.score - 1.0).abs() < 1e-9);
+    // Bad NA check digit -> dropped.
+    assert!(engine
+        .analyze("vin 1M8GDM9A0KP042788", "en", None, None)
+        .iter()
+        .all(|r| r.entity_type != "VIN"));
+}
+
+#[test]
 fn validators_edge_cases() {
     use presidio_analyzer::validators::*;
     assert_eq!(validate_us_ssn("123-45-6789"), None);

@@ -132,6 +132,74 @@ pub fn validate_us_ssn(text: &str) -> Option<bool> {
     None
 }
 
+/// IMEI: strip separators, require 15 digits, then Luhn (mod-10). Valid promotes
+/// to 1.0; anything else is discarded.
+pub fn validate_imei(text: &str) -> Option<bool> {
+    let d: String = text.chars().filter(|c| c.is_ascii_digit()).collect();
+    if d.len() != 15 {
+        return Some(false);
+    }
+    Some(luhn_valid(&d))
+}
+
+/// VIN transliteration: digits keep their value; letters map A-Z (I, O, Q
+/// excluded) to 1-9 per ISO 3779 / NHTSA. Returns `None` for illegal characters.
+fn vin_translit(c: char) -> Option<u32> {
+    if let Some(d) = c.to_digit(10) {
+        return Some(d);
+    }
+    Some(match c {
+        'A' | 'J' => 1,
+        'B' | 'K' | 'S' => 2,
+        'C' | 'L' | 'T' => 3,
+        'D' | 'M' | 'U' => 4,
+        'E' | 'N' | 'V' => 5,
+        'F' | 'W' => 6,
+        'G' | 'P' | 'X' => 7,
+        'H' | 'Y' => 8,
+        'R' | 'Z' => 9,
+        _ => return None,
+    })
+}
+
+/// VIN: 17 chars, ISO 3779 mod-11 check digit at position 9 (`X` == 10).
+/// North-American VINs (WMI 1-5) with a bad check digit are rejected
+/// (`Some(false)`); elsewhere a bad check digit yields `None` (many real
+/// non-NA VINs omit a valid check digit), preserving the base score.
+pub fn validate_vin(text: &str) -> Option<bool> {
+    let s: String = text
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .map(|c| c.to_ascii_uppercase())
+        .collect();
+    if s.len() != 17 {
+        return Some(false);
+    }
+    const WEIGHTS: [u32; 17] = [8, 7, 6, 5, 4, 3, 2, 10, 0, 9, 8, 7, 6, 5, 4, 3, 2];
+    let chars: Vec<char> = s.chars().collect();
+    let mut sum = 0u32;
+    for (i, &c) in chars.iter().enumerate() {
+        let Some(v) = vin_translit(c) else {
+            return Some(false);
+        };
+        sum += v * WEIGHTS[i];
+    }
+    let remainder = sum % 11;
+    let expected = if remainder == 10 {
+        'X'
+    } else {
+        char::from_digit(remainder, 10).unwrap()
+    };
+    let north_american = matches!(chars[0], '1'..='5');
+    if chars[8] == expected {
+        Some(true)
+    } else if north_american {
+        Some(false)
+    } else {
+        None
+    }
+}
+
 const B58: &[u8; 58] = b"123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
 
 /// Decode a Base58 (Bitcoin alphabet) string into bytes. Returns `None` on any
@@ -183,6 +251,26 @@ mod tests {
     fn iban() {
         assert_eq!(validate_iban("GB82 WEST 1234 5698 7654 32"), Some(true));
         assert_eq!(validate_iban("GB00 WEST 1234 5698 7654 32"), Some(false));
+    }
+
+    #[test]
+    fn imei() {
+        assert_eq!(validate_imei("490154203237518"), Some(true));
+        assert_eq!(validate_imei("49-015420-323751-8"), Some(true));
+        assert_eq!(validate_imei("490154203237519"), Some(false));
+        assert_eq!(validate_imei("12345"), Some(false));
+    }
+
+    #[test]
+    fn vin() {
+        // All-ones VIN: mod-11 check digit resolves to '1' — valid.
+        assert_eq!(validate_vin("11111111111111111"), Some(true));
+        // North-American (WMI '1') with a wrong check digit -> rejected.
+        assert_eq!(validate_vin("12111111111111111"), Some(false));
+        assert_eq!(validate_vin("1M8GDM9AXKP042788"), Some(true));
+        // Illegal char (I) and wrong length.
+        assert_eq!(validate_vin("1I111111111111111"), Some(false));
+        assert_eq!(validate_vin("ABC"), Some(false));
     }
 
     #[test]

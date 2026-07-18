@@ -90,7 +90,7 @@ let result = anon.anonymize(text, spans, &ops).unwrap();
 
 **Generic:** `CREDIT_CARD` (Luhn), `CRYPTO` (BTC Base58Check), `IBAN_CODE`
 (mod-97), `EMAIL_ADDRESS`, `IP_ADDRESS` (v4/v6), `MAC_ADDRESS`, `URL`,
-`DATE_TIME`, `US_SSN`.
+`DATE_TIME`, `IMEI` (Luhn), `VIN` (ISO 3779 mod-11), `US_SSN`.
 
 **Phone:** `PHONE_NUMBER` via the [`phonenumber`](https://crates.io/crates/phonenumber)
 crate (Rust libphonenumber). Runs Presidio's full default region set
@@ -107,7 +107,7 @@ regions. `+CC` international numbers are detected regardless of region.
 `SE_PERSONNUMMER` (Luhn), `ZA_ID` (Luhn), `KR_RRN`. **Pattern-only:** `UK_NINO`,
 `IN_PAN`, `IN_VOTER`, `IN_PASSPORT`, `IN_VEHICLE_REGISTRATION`, `IT_FISCAL_CODE`,
 `IT_DRIVER_LICENSE`, `SG_UEN`, `US_ITIN`, `US_PASSPORT`, `US_DRIVER_LICENSE`,
-`US_BANK_NUMBER`, `JP_MYNUMBER`, `MX_RFC`, `MX_CURP` — ~54 entity types total.
+`US_BANK_NUMBER`, `JP_MYNUMBER`, `MX_RFC`, `MX_CURP` — ~56 entity types total.
 
 **NER** entities (`PERSON`, `LOCATION`, `ORGANIZATION`, `NRP`) are wired through
 `NerRecognizer` and activate once an NLP engine with NER is set.
@@ -177,7 +177,7 @@ on the engine's factory via `factory_mut()`.
 | Area | Status |
 |------|--------|
 | Pattern-recognizer framework, registry, analyzer-engine orchestration | ✅ |
-| ~54 entity types; 27 checksum-validated national IDs across ~20 countries | ✅ (parity+) |
+| ~56 entity types; 27 checksum-validated national IDs across ~20 countries + generic `VIN`/`IMEI` | ✅ (parity+) |
 | Checksums: Luhn, IBAN mod-97, Base58Check, NHS, PESEL, SG NRIC, AU ABN/TFN/ACN/Medicare, Aadhaar (Verhoeff), FI HETU, BR CPF/CNPJ, NL BSN, TR, BE, PT, CN (ISO 7064), RU SNILS, DE tax-id, SE, ZA, KR, ES NIF/NIE, IT VAT, CA SIN | ✅ |
 | `PHONE_NUMBER` — real libphonenumber (`phonenumber`), full default region set + `Leniency.VALID` grouping emulation | ✅ (parity) |
 | Anonymizer operators: replace, redact, mask, hash, keep, encrypt, decrypt, custom, **surrogate** (local) | ✅ (parity) |

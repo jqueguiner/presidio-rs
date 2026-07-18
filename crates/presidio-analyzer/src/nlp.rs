@@ -17,6 +17,10 @@ pub struct Token {
     pub start: usize,
     pub end: usize,
     pub is_stop: bool,
+    /// Coarse part-of-speech tag (UPOS, e.g. `PROPN`, `NOUN`, `VERB`). Empty when
+    /// the NLP backend does not produce POS (e.g. [`SimpleNlpEngine`]); consumers
+    /// must treat an empty tag as "unknown" and fall back.
+    pub pos: String,
 }
 
 /// A named entity emitted by an NER model.
@@ -112,5 +116,6 @@ fn push_token(
         start,
         end,
         is_stop,
+        pos: String::new(), // SimpleNlpEngine does no POS tagging
     });
 }

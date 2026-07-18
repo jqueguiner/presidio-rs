@@ -60,6 +60,13 @@ pub struct GazetteerRecognizer {
     /// always kept, so this only drops lowercase common-word collisions
     /// (`will`, `mark`, `rose`) without hurting recall on uncased text.
     require_proper_noun: bool,
+    /// Allowed part-of-speech tags (UPOS) for the matched head token. When set
+    /// and the NLP layer supplies a POS for that token, a match is kept only if
+    /// its POS is in this set — an independent grammatical signal that
+    /// disambiguates homographs (`Rose`/`Mark` = PROPN keep; `Section`/`Milk` =
+    /// NOUN drop) which casing alone cannot. When no POS is available it falls
+    /// back to the [`require_proper_noun`](Self::with_require_proper_noun) gate.
+    pos_gate: Option<Vec<String>>,
 }
 
 impl GazetteerRecognizer {
@@ -74,6 +81,7 @@ impl GazetteerRecognizer {
             max_words: 1,
             case_sensitive: false,
             require_proper_noun: false,
+            pos_gate: None,
         }
     }
 
@@ -109,6 +117,21 @@ impl GazetteerRecognizer {
         self
     }
 
+    /// Keep only matches whose head token has one of `allowed` UPOS tags, when
+    /// the NLP layer provides POS (falls back to the proper-noun/casing gate
+    /// otherwise). POS is an independent grammatical signal that disambiguates
+    /// homographs casing cannot (`Section`/`Milk` are capitalized but `NOUN`,
+    /// so they are dropped; `Rose`/`Mark` are `PROPN`, so kept). Typically
+    /// `["PROPN"]` for names/places/orgs.
+    pub fn with_pos_gate<I, S>(mut self, allowed: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        self.pos_gate = Some(allowed.into_iter().map(Into::into).collect());
+        self
+    }
+
     /// Number of names in the set.
     pub fn len(&self) -> usize {
         self.names.len()
@@ -139,6 +162,28 @@ impl GazetteerRecognizer {
             None => true,
         }
     }
+
+    /// Combined admission gate for a match whose head token starts at byte
+    /// `start` with surface `first_tok`. Prefers the POS gate when a POS tag is
+    /// available for the head token; otherwise falls back to the proper-noun
+    /// (casing) gate. This lets a POS-capable NLP backend drive precision while
+    /// keeping the dependency-free default working.
+    fn gate_ok(&self, start: usize, first_tok: &str, nlp: Option<&NlpArtifacts>) -> bool {
+        if let Some(allowed) = &self.pos_gate {
+            if let Some(art) = nlp {
+                if let Some(tok) = art
+                    .tokens
+                    .iter()
+                    .find(|t| t.start <= start && start < t.end)
+                {
+                    if !tok.pos.is_empty() {
+                        return allowed.iter().any(|p| p == &tok.pos);
+                    }
+                }
+            }
+        }
+        self.proper_noun_ok(first_tok)
+    }
 }
 
 impl EntityRecognizer for GazetteerRecognizer {
@@ -160,7 +205,7 @@ impl EntityRecognizer for GazetteerRecognizer {
         &self,
         text: &str,
         entities: &[String],
-        _nlp: Option<&NlpArtifacts>,
+        nlp: Option<&NlpArtifacts>,
     ) -> Vec<RecognizerResult> {
         if !entities.iter().any(|e| e == &self.entity) {
             return Vec::new();
@@ -184,7 +229,7 @@ impl EntityRecognizer for GazetteerRecognizer {
                     .collect::<Vec<_>>()
                     .join(" ");
                 if phrase.chars().count() >= self.min_len
-                    && self.proper_noun_ok(toks[i].2)
+                    && self.gate_ok(toks[i].0, toks[i].2, nlp)
                     && self.names.contains(&self.key(&phrase))
                 {
                     let start = toks[i].0;
@@ -317,6 +362,7 @@ pub fn first_names() -> GazetteerRecognizer {
         0.3,
     )
     .with_require_proper_noun(true)
+    .with_pos_gate(["PROPN"])
 }
 
 /// `LAST_NAME` gazetteer — ~794k multi-country surnames from the census DB
@@ -330,6 +376,7 @@ pub fn last_names() -> GazetteerRecognizer {
         0.3,
     )
     .with_require_proper_noun(true)
+    .with_pos_gate(["PROPN"])
 }
 
 /// `LOCATION` gazetteer — ~707k city names + multilingual aliases from GeoNames
@@ -344,6 +391,7 @@ pub fn cities() -> GazetteerRecognizer {
     )
     .with_max_words(6)
     .with_require_proper_noun(true)
+    .with_pos_gate(["PROPN"])
 }
 
 /// `ORGANIZATION` gazetteer — ~3.12M organization names from the GLEIF golden
@@ -360,6 +408,7 @@ pub fn organizations() -> GazetteerRecognizer {
     )
     .with_max_words(10)
     .with_require_proper_noun(true)
+    .with_pos_gate(["PROPN"])
 }
 
 /// `STOCK_TICKER` gazetteer — ~9.9k US-listed symbols from the SEC company
@@ -516,6 +565,58 @@ mod tests {
             .with_require_proper_noun(true);
         let res = rec.analyze("从 北京 到 東京", &["LOCATION".to_string()], None);
         assert_eq!(res.len(), 2);
+    }
+
+    // Build NlpArtifacts with POS tags for a whitespace-tokenized ASCII string.
+    fn nlp_with_pos(text: &str, pos: &[(&str, &str)]) -> crate::nlp::NlpArtifacts {
+        use crate::nlp::Token;
+        let map: std::collections::HashMap<&str, &str> = pos.iter().copied().collect();
+        let mut tokens = Vec::new();
+        let mut i = 0;
+        for w in text.split(' ') {
+            if !w.is_empty() {
+                tokens.push(Token {
+                    text: w.to_string(),
+                    lemma: w.to_lowercase(),
+                    start: i,
+                    end: i + w.len(),
+                    is_stop: false,
+                    pos: map.get(w).copied().unwrap_or("").to_string(),
+                });
+            }
+            i += w.len() + 1;
+        }
+        crate::nlp::NlpArtifacts {
+            tokens,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn pos_gate_drops_wrong_pos_keeps_propn() {
+        // "rose" both a name and a verb; "mark" both a name and a verb.
+        let set: HashSet<String> = ["rose", "mark"].iter().map(|s| s.to_string()).collect();
+        let rec = GazetteerRecognizer::new("G", "FIRST_NAME", set, 0.3).with_pos_gate(["PROPN"]);
+        let ents = ["FIRST_NAME".to_string()];
+        let text = "Rose Mark";
+        // Rose tagged PROPN (kept), Mark tagged VERB (dropped) — casing is identical.
+        let nlp = nlp_with_pos(text, &[("Rose", "PROPN"), ("Mark", "VERB")]);
+        let res = rec.analyze(text, &ents, Some(&nlp));
+        assert_eq!(res.len(), 1);
+        assert_eq!(&text[res[0].start..res[0].end], "Rose");
+    }
+
+    #[test]
+    fn pos_gate_falls_back_to_casing_without_pos() {
+        // No NLP / empty POS -> fall back to the proper-noun casing gate.
+        let set: HashSet<String> = ["rose"].iter().map(|s| s.to_string()).collect();
+        let rec = GazetteerRecognizer::new("G", "FIRST_NAME", set, 0.3)
+            .with_require_proper_noun(true)
+            .with_pos_gate(["PROPN"]);
+        let ents = ["FIRST_NAME".to_string()];
+        // No nlp at all -> casing gate: "Rose" kept, "rose" dropped.
+        assert_eq!(rec.analyze("Rose", &ents, None).len(), 1);
+        assert!(rec.analyze("rose", &ents, None).is_empty());
     }
 
     #[cfg(feature = "names-gazetteer")]

@@ -11,7 +11,7 @@ dependency in the crate.
 | `first_names` | 195,943 | `names-gazetteer` / `FIRST_NAME` | multi-country census names DB |
 | `last_names`  | 794,385 | `names-gazetteer` / `LAST_NAME` | multi-country census names DB |
 | `cities`      | 706,512 | `cities-gazetteer` / `LOCATION` | GeoNames `cities500` (name + `alternatenames`) |
-| `orgs`        | 3,166,828 | `orgs-gazetteer` / `ORGANIZATION` | GLEIF golden copy (`Entity.LegalName`) |
+| `orgs`        | 3,118,633 | `orgs-gazetteer` / `ORGANIZATION` | GLEIF golden copy (`Entity.LegalName`, legal-form suffixes stripped) |
 | `tickers`     | 9,862 | `tickers-gazetteer` / `STOCK_TICKER` | SEC `company_tickers.json` |
 
 ## Provenance & normalization
@@ -21,7 +21,9 @@ other metadata columns were **stripped** — only the surface name/symbol is kep
 
 - **Names / cities / orgs**: lowercased, reduced to letters/digits/space/hyphen,
   whitespace collapsed, length ≥ 3, deduplicated. Cities include GeoNames
-  multilingual `alternatenames`; org `&` is folded to a space (tokens split on it).
+  multilingual `alternatenames`. Orgs: `&` folded to a space, a leading `The`
+  and trailing legal-form tokens (`Inc`, `Corp`, `Ltd`, `LLC`, `GmbH`, `SA`,
+  `AG`, `PLC`, … ~60 forms) stripped so the core name matches free text.
 - **Tickers**: uppercased, alphabetic, length 2–6, deduplicated (matched
   case-sensitively so they don't fire on common lowercase words).
 

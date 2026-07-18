@@ -125,7 +125,7 @@ every source, leaving only the surface form.
 |---------|--------|--------|---------|
 | `names-gazetteer` | `FIRST_NAME`, `LAST_NAME` | census names DB | ~196k / ~794k |
 | `cities-gazetteer` | `LOCATION` | GeoNames `cities500` (+ multilingual aliases) | ~707k |
-| `orgs-gazetteer` | `ORGANIZATION` | GLEIF golden copy (legal names) | ~3.17M |
+| `orgs-gazetteer` | `ORGANIZATION` | GLEIF golden copy (legal-form-stripped) | ~3.12M |
 | `tickers-gazetteer` | `STOCK_TICKER` | SEC company tickers | ~9.9k |
 | `gazetteers-all` | all of the above | | |
 
@@ -142,8 +142,10 @@ let engine = AnalyzerEngine::new().with_registry(reg);
 
 Base scores are medium/standalone (0.3–0.4) — these lists are precision-limited
 (many names/cities are also common words), so lean on conflict resolution or
-raise the analyzer threshold for high-precision use. The `orgs-gazetteer` feature
-embeds ~24 MB; enable it only when you need org coverage.
+raise the analyzer threshold for high-precision use. Org names have their
+legal-form suffixes stripped (`Apple Inc` → `apple`) so they match free text.
+The `orgs-gazetteer` feature embeds ~23 MB; enable it only when you need org
+coverage.
 
 ### Operators ported
 

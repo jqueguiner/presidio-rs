@@ -11,7 +11,7 @@
 //! |---------|--------|--------|------|
 //! | `names-gazetteer`   | `FIRST_NAME`, `LAST_NAME` | census names DB | ~196k + ~794k |
 //! | `cities-gazetteer`  | `LOCATION`      | GeoNames cities500 | ~707k |
-//! | `orgs-gazetteer`    | `ORGANIZATION`  | GLEIF golden copy  | ~3.17M |
+//! | `orgs-gazetteer`    | `ORGANIZATION`  | GLEIF golden copy  | ~3.12M |
 //! | `tickers-gazetteer` | `STOCK_TICKER`  | SEC company tickers | ~9.9k |
 //!
 //! The `GazetteerRecognizer` type itself is always available so callers can
@@ -215,8 +215,10 @@ pub fn cities() -> GazetteerRecognizer {
     GazetteerRecognizer::new("CityGazetteer", "LOCATION", set, 0.3).with_max_words(6)
 }
 
-/// `ORGANIZATION` gazetteer — ~3.17M legal entity names from the GLEIF golden
-/// copy (LEI metadata stripped). Multi-word (up to 10 tokens). Heavy (~24 MB).
+/// `ORGANIZATION` gazetteer — ~3.12M organization names from the GLEIF golden
+/// copy. Legal-form suffixes (`Inc`, `Corp`, `Ltd`, `GmbH`, …) and a leading
+/// `The` are stripped so the core name matches free text (`Apple Inc` → `apple`).
+/// Multi-word (up to 10 tokens). Heavy (~23 MB).
 #[cfg(feature = "orgs-gazetteer")]
 pub fn organizations() -> GazetteerRecognizer {
     let set = load_gz(include_bytes!("../data/orgs.txt.gz"));
@@ -367,13 +369,16 @@ mod tests {
     fn org_gazetteer_detects() {
         let o = organizations();
         assert!(o.len() > 1_000_000);
-        // "Apple Inc" is a registered legal name in GLEIF.
-        let res = o.analyze(
-            "shares of Apple Inc rose",
-            &["ORGANIZATION".to_string()],
-            None,
-        );
-        assert!(res.iter().any(|r| r.entity_type == "ORGANIZATION"));
+        // Legal-form suffix stripped -> the bare core name matches free text.
+        let text = "shares of Apple rose";
+        let res = o.analyze(text, &["ORGANIZATION".to_string()], None);
+        assert!(res.iter().any(|r| &text[r.start..r.end] == "Apple"));
+        // Multi-word core still matches.
+        let text2 = "a Goldman Sachs report";
+        let res2 = o.analyze(text2, &["ORGANIZATION".to_string()], None);
+        assert!(res2
+            .iter()
+            .any(|r| &text2[r.start..r.end] == "Goldman Sachs"));
     }
 
     #[cfg(feature = "tickers-gazetteer")]

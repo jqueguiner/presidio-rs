@@ -378,6 +378,20 @@ fn pattern_regex_is_case_sensitive() {
     assert_eq!(res[0].start, 3);
 }
 
+// Upstream issue #1603 targeted fix: lowercase IBANs are now detected and
+// validated (the mod-97 validator uppercases first).
+#[test]
+fn lowercase_iban_is_detected() {
+    let rec = predefined::iban();
+    let res = rec.analyze(
+        "iban gb82 west 1234 5698 7654 32",
+        &["IBAN_CODE".to_string()],
+        None,
+    );
+    assert_eq!(res.len(), 1);
+    assert!((res[0].score - 1.0).abs() < 1e-9); // validated -> promoted
+}
+
 #[test]
 fn validators_edge_cases() {
     use presidio_analyzer::validators::*;

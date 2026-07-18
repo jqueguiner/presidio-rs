@@ -31,6 +31,8 @@ pub mod entities;
 pub mod gazetteer;
 pub mod ner_recognizer;
 pub mod nlp;
+#[cfg(feature = "onnx-pos")]
+pub mod onnx_nlp;
 pub mod pattern;
 pub mod phone_recognizer;
 pub mod predefined;

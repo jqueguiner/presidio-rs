@@ -104,10 +104,13 @@ regions. `+CC` international numbers are detected regardless of region.
 `AU_ACN`, `AU_MEDICARE`, `IN_AADHAAR` (Verhoeff), `FI_PERSONAL_IDENTITY_CODE`,
 `IT_VAT_CODE`, `CA_SIN` (Luhn), `BR_CPF`, `BR_CNPJ`, `NL_BSN`, `TR_TCKN`,
 `BE_NRN` (mod-97), `PT_NIF`, `CN_RIC` (ISO 7064), `RU_SNILS`, `DE_TAX_ID`,
-`SE_PERSONNUMMER` (Luhn), `ZA_ID` (Luhn), `KR_RRN`. **Pattern-only:** `UK_NINO`,
+`SE_PERSONNUMMER` (Luhn), `ZA_ID` (Luhn), `KR_RRN`, `TW_NATIONAL_ID` (mod-10),
+`CZ_BIRTH_NUMBER` (mod-11). **Distinctive-pattern:** `CA_POSTAL_CODE`,
+`ZA_COMPANY_REGISTRATION` (CIPC). **Pattern-only:** `UK_NINO`,
 `IN_PAN`, `IN_VOTER`, `IN_PASSPORT`, `IN_VEHICLE_REGISTRATION`, `IT_FISCAL_CODE`,
 `IT_DRIVER_LICENSE`, `SG_UEN`, `US_ITIN`, `US_PASSPORT`, `US_DRIVER_LICENSE`,
-`US_BANK_NUMBER`, `JP_MYNUMBER`, `MX_RFC`, `MX_CURP` — ~56 entity types total.
+`US_BANK_NUMBER`, `JP_MYNUMBER`, `MX_RFC`, `MX_CURP`, `ZA_VAT_NUMBER` — ~61 entity
+types total.
 
 **NER** entities (`PERSON`, `LOCATION`, `ORGANIZATION`, `NRP`) are wired through
 `NerRecognizer` and activate once an NLP engine with NER is set.
@@ -177,8 +180,8 @@ on the engine's factory via `factory_mut()`.
 | Area | Status |
 |------|--------|
 | Pattern-recognizer framework, registry, analyzer-engine orchestration | ✅ |
-| ~56 entity types; 27 checksum-validated national IDs across ~20 countries + generic `VIN`/`IMEI` | ✅ (parity+) |
-| Checksums: Luhn, IBAN mod-97, Base58Check, NHS, PESEL, SG NRIC, AU ABN/TFN/ACN/Medicare, Aadhaar (Verhoeff), FI HETU, BR CPF/CNPJ, NL BSN, TR, BE, PT, CN (ISO 7064), RU SNILS, DE tax-id, SE, ZA, KR, ES NIF/NIE, IT VAT, CA SIN | ✅ |
+| ~61 entity types; 29 checksum-validated national IDs across ~22 countries + generic `VIN`/`IMEI` | ✅ (parity+) |
+| Checksums: Luhn, IBAN mod-97, Base58Check, NHS, PESEL, SG NRIC, AU ABN/TFN/ACN/Medicare, Aadhaar (Verhoeff), FI HETU, BR CPF/CNPJ, NL BSN, TR, BE, PT, CN (ISO 7064), RU SNILS, DE tax-id, SE, ZA, KR, ES NIF/NIE, IT VAT, CA SIN, TW national-id (mod-10), CZ birth-number (mod-11) | ✅ |
 | `PHONE_NUMBER` — real libphonenumber (`phonenumber`), full default region set + `Leniency.VALID` grouping emulation | ✅ (parity) |
 | Anonymizer operators: replace, redact, mask, hash, keep, encrypt, decrypt, custom, **surrogate** (local) | ✅ (parity) |
 | Deanonymizer + AES-CBC encrypt/decrypt | ✅ |

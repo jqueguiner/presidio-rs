@@ -4,8 +4,9 @@
 //! set, rather than regex — the sets (hundreds of thousands to millions of
 //! entries) are far too large for a regex alternation.
 //!
-//! Backs several reference-data recognizers, each behind its own cargo feature
-//! so you only embed what you enable:
+//! Backs several reference-data recognizers, each behind its own cargo feature.
+//! The data is downloaded and cached on first use (see the [`data`] module), so
+//! it works from a crates.io build as well as an in-repo checkout:
 //!
 //! | Feature | Entity | Source | Size |
 //! |---------|--------|--------|------|
@@ -169,8 +170,17 @@ impl EntityRecognizer for GazetteerRecognizer {
 }
 
 // ---------------------------------------------------------------------------
-// Embedded gazetteers (feature-gated per dataset)
+// Dataset gazetteers (feature-gated per dataset)
 // ---------------------------------------------------------------------------
+//
+// The gzipped data is too large to embed in (and ship inside) the crates.io
+// package, so it is resolved at first use in this order:
+//   1. `$PRESIDIO_GAZETTEER_DIR/<file>`      (explicit override / offline)
+//   2. `./data/<file>` or
+//      `./crates/presidio-analyzer/data/<file>` (in-repo / git checkout)
+//   3. a per-user cache dir, downloading from the pinned GitHub tag if absent
+// The download URL is pinned to the crate version's git tag so a given release
+// always resolves the data it was built against.
 
 #[cfg(any(
     feature = "names-gazetteer",
@@ -178,51 +188,131 @@ impl EntityRecognizer for GazetteerRecognizer {
     feature = "orgs-gazetteer",
     feature = "tickers-gazetteer",
 ))]
-fn load_gz(bytes: &[u8]) -> HashSet<String> {
+mod data {
+    use super::HashSet;
     use std::io::Read;
-    let mut s = String::new();
-    flate2::read::GzDecoder::new(bytes)
-        .read_to_string(&mut s)
-        .expect("embedded gazetteer is valid gzip");
-    s.lines()
-        .map(|l| l.trim())
-        .filter(|l| !l.is_empty())
-        .map(|l| l.to_string())
-        .collect()
+    use std::path::PathBuf;
+
+    fn parse_gz(bytes: &[u8]) -> HashSet<String> {
+        let mut s = String::new();
+        flate2::read::GzDecoder::new(bytes)
+            .read_to_string(&mut s)
+            .expect("gazetteer data is valid gzip");
+        s.lines()
+            .map(|l| l.trim())
+            .filter(|l| !l.is_empty())
+            .map(|l| l.to_string())
+            .collect()
+    }
+
+    fn local_path(file: &str) -> Option<PathBuf> {
+        if let Ok(dir) = std::env::var("PRESIDIO_GAZETTEER_DIR") {
+            let p = PathBuf::from(dir).join(file);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+        for base in ["data", "crates/presidio-analyzer/data"] {
+            let p = PathBuf::from(base).join(file);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+        None
+    }
+
+    fn cache_path(file: &str) -> PathBuf {
+        let base = dirs::cache_dir()
+            .unwrap_or_else(std::env::temp_dir)
+            .join("presidio-rs")
+            .join(env!("CARGO_PKG_VERSION"));
+        let _ = std::fs::create_dir_all(&base);
+        base.join(file)
+    }
+
+    fn download_to(url: &str, dest: &PathBuf) {
+        let mut buf = Vec::new();
+        ureq::get(url)
+            .call()
+            .unwrap_or_else(|e| panic!("failed to fetch gazetteer data from {url}: {e}"))
+            .into_reader()
+            .read_to_end(&mut buf)
+            .expect("read gazetteer download");
+        let tmp = dest.with_extension("part");
+        std::fs::write(&tmp, &buf).expect("write gazetteer cache");
+        std::fs::rename(&tmp, dest).expect("finalize gazetteer cache");
+    }
+
+    /// Resolve `file` (e.g. `first_names.txt.gz`) to a decompressed name set,
+    /// downloading and caching it on first use if not found locally.
+    pub(super) fn load(file: &str) -> HashSet<String> {
+        if let Some(p) = local_path(file) {
+            return parse_gz(&std::fs::read(&p).expect("read local gazetteer"));
+        }
+        let cache = cache_path(file);
+        if !cache.is_file() {
+            let url = format!(
+                "https://raw.githubusercontent.com/jqueguiner/presidio-rs/v{}/crates/presidio-analyzer/data/{file}",
+                env!("CARGO_PKG_VERSION")
+            );
+            download_to(&url, &cache);
+        }
+        parse_gz(&std::fs::read(&cache).expect("read cached gazetteer"))
+    }
 }
 
 /// `FIRST_NAME` gazetteer — ~196k multi-country first names from the census DB
 /// (probabilities/ranks stripped). Base score 0.3 (medium, standalone).
+///
+/// Data is downloaded and cached on first use (see the [`data`] module).
 #[cfg(feature = "names-gazetteer")]
 pub fn first_names() -> GazetteerRecognizer {
-    let set = load_gz(include_bytes!("../data/first_names.txt.gz"));
-    GazetteerRecognizer::new("FirstNameGazetteer", "FIRST_NAME", set, 0.3)
+    GazetteerRecognizer::new(
+        "FirstNameGazetteer",
+        "FIRST_NAME",
+        data::load("first_names.txt.gz"),
+        0.3,
+    )
 }
 
 /// `LAST_NAME` gazetteer — ~794k multi-country surnames from the census DB
 /// (probabilities/ranks stripped). Base score 0.3 (medium, standalone).
 #[cfg(feature = "names-gazetteer")]
 pub fn last_names() -> GazetteerRecognizer {
-    let set = load_gz(include_bytes!("../data/last_names.txt.gz"));
-    GazetteerRecognizer::new("LastNameGazetteer", "LAST_NAME", set, 0.3)
+    GazetteerRecognizer::new(
+        "LastNameGazetteer",
+        "LAST_NAME",
+        data::load("last_names.txt.gz"),
+        0.3,
+    )
 }
 
 /// `LOCATION` gazetteer — ~707k city names + multilingual aliases from GeoNames
 /// `cities500` (population/coords stripped). Multi-word (up to 6 tokens).
 #[cfg(feature = "cities-gazetteer")]
 pub fn cities() -> GazetteerRecognizer {
-    let set = load_gz(include_bytes!("../data/cities.txt.gz"));
-    GazetteerRecognizer::new("CityGazetteer", "LOCATION", set, 0.3).with_max_words(6)
+    GazetteerRecognizer::new(
+        "CityGazetteer",
+        "LOCATION",
+        data::load("cities.txt.gz"),
+        0.3,
+    )
+    .with_max_words(6)
 }
 
 /// `ORGANIZATION` gazetteer — ~3.12M organization names from the GLEIF golden
 /// copy. Legal-form suffixes (`Inc`, `Corp`, `Ltd`, `GmbH`, …) and a leading
 /// `The` are stripped so the core name matches free text (`Apple Inc` → `apple`).
-/// Multi-word (up to 10 tokens). Heavy (~23 MB).
+/// Multi-word (up to 10 tokens). Heavy (~23 MB download).
 #[cfg(feature = "orgs-gazetteer")]
 pub fn organizations() -> GazetteerRecognizer {
-    let set = load_gz(include_bytes!("../data/orgs.txt.gz"));
-    GazetteerRecognizer::new("OrgGazetteer", "ORGANIZATION", set, 0.3).with_max_words(10)
+    GazetteerRecognizer::new(
+        "OrgGazetteer",
+        "ORGANIZATION",
+        data::load("orgs.txt.gz"),
+        0.3,
+    )
+    .with_max_words(10)
 }
 
 /// `STOCK_TICKER` gazetteer — ~9.9k US-listed symbols from the SEC company
@@ -230,10 +320,14 @@ pub fn organizations() -> GazetteerRecognizer {
 /// not match common lowercase words. Base score 0.4.
 #[cfg(feature = "tickers-gazetteer")]
 pub fn stock_tickers() -> GazetteerRecognizer {
-    let set = load_gz(include_bytes!("../data/tickers.txt.gz"));
-    GazetteerRecognizer::new("StockTickerGazetteer", "STOCK_TICKER", set, 0.4)
-        .with_case_sensitive(true)
-        .with_min_len(2)
+    GazetteerRecognizer::new(
+        "StockTickerGazetteer",
+        "STOCK_TICKER",
+        data::load("tickers.txt.gz"),
+        0.4,
+    )
+    .with_case_sensitive(true)
+    .with_min_len(2)
 }
 
 /// Every gazetteer whose cargo feature is enabled, ready to register.

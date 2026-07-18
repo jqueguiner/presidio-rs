@@ -16,8 +16,8 @@ name = "presidio-server"
 path = "src/main.rs"
 
 [dependencies]
-presidio-analyzer = { path = "../presidio-analyzer", version = "0.1.9" }
-presidio-anonymizer = { path = "../presidio-anonymizer", version = "0.1.9" }
+presidio-analyzer = { path = "../presidio-analyzer", version = "0.1.10" }
+presidio-anonymizer = { path = "../presidio-anonymizer", version = "0.1.10" }
 axum = "0.7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
 serde = { workspace = true }

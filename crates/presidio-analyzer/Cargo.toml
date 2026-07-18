@@ -6,11 +6,9 @@ license.workspace = true
 authors.workspace = true
 repository.workspace = true
 description = "PII detection engine — Rust port of presidio-analyzer"
-# Parquet files are the canonical dataset source-of-truth; the build only needs
-# the derived .txt.gz, so keep the published crate lean.
-# The gazetteer data (~27 MB gz + parquet) exceeds the crates.io size limit, so
-# it is excluded from the published package. Gazetteer features therefore only
-# build from a git/path checkout, not from crates.io.
+# The gazetteer data is too large to ship inside the crates.io package. It lives
+# in git and is downloaded + cached at first use instead (see src/gazetteer.rs),
+# so exclude the whole data/ dir from the published package.
 exclude = ["data"]
 
 [dependencies]
@@ -20,18 +18,23 @@ serde_json.workspace = true
 sha2.workspace = true
 phonenumber = "0.3"
 flate2 = { version = "1", optional = true }
+ureq = { version = "2", default-features = false, features = ["tls"], optional = true }
+dirs = { version = "5", optional = true }
 
 [features]
-# Gazetteer recognizers backed by embedded, gzipped reference data. Each dataset
-# is a separate feature so you only pay for what you enable. All pull in flate2.
-#   names-gazetteer    FIRST_NAME + LAST_NAME  (~196k + ~794k)   ~2.6 MB
-#   cities-gazetteer   LOCATION                (~707k)            ~2.6 MB
-#   orgs-gazetteer     ORGANIZATION            (~3.17M, GLEIF)    ~24 MB
-#   tickers-gazetteer  STOCK_TICKER            (~9.9k, SEC)       ~23 KB
-names-gazetteer = ["dep:flate2"]
-cities-gazetteer = ["dep:flate2"]
-orgs-gazetteer = ["dep:flate2"]
-tickers-gazetteer = ["dep:flate2"]
+# Gazetteer recognizers backed by large reference-data lists. Each dataset is a
+# separate feature so you only enable what you need. The gzipped data is fetched
+# and cached at first use (git checkout: read from data/; otherwise downloaded
+# from the crate's pinned GitHub tag). Set PRESIDIO_GAZETTEER_DIR to load offline.
+#   names-gazetteer    FIRST_NAME + LAST_NAME  (~196k + ~794k)
+#   cities-gazetteer   LOCATION                (~707k, GeoNames)
+#   orgs-gazetteer     ORGANIZATION            (~3.12M, GLEIF)
+#   tickers-gazetteer  STOCK_TICKER            (~9.9k, SEC)
+_gazetteer = ["dep:flate2", "dep:ureq", "dep:dirs"]
+names-gazetteer = ["_gazetteer"]
+cities-gazetteer = ["_gazetteer"]
+orgs-gazetteer = ["_gazetteer"]
+tickers-gazetteer = ["_gazetteer"]
 gazetteers-all = [
     "names-gazetteer",
     "cities-gazetteer",

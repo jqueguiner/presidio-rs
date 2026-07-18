@@ -12,8 +12,8 @@ name = "presidio"
 path = "src/main.rs"
 
 [dependencies]
-presidio-analyzer = { path = "../presidio-analyzer", version = "0.1.9" }
-presidio-anonymizer = { path = "../presidio-anonymizer", version = "0.1.9" }
+presidio-analyzer = { path = "../presidio-analyzer", version = "0.1.10" }
+presidio-anonymizer = { path = "../presidio-anonymizer", version = "0.1.10" }
 clap.workspace = true
 serde_json.workspace = true
 anyhow.workspace = true

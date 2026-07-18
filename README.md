@@ -116,10 +116,13 @@ types total.
 `NerRecognizer` and activate once an NLP engine with NER is set.
 
 **Gazetteers** (optional, feature-gated) — reference-data recognizers backed by
-large embedded lists, matched by exact token/phrase lookup via a `HashSet`
+large lists, matched by exact token/phrase lookup via a `HashSet`
 (`GazetteerRecognizer`), not regex, so the sets stay fast. Each dataset is its
-own cargo feature (all pull `flate2`); metadata/probabilities are stripped from
-every source, leaving only the surface form.
+own cargo feature; metadata/probabilities are stripped from every source,
+leaving only the surface form. The data is **downloaded and cached on first
+use** (from the crate's pinned git tag), so it works from crates.io too; in a
+git checkout it is read straight from `data/`. Set `PRESIDIO_GAZETTEER_DIR` to a
+local dir to run fully offline.
 
 | Feature | Entity | Source | Entries |
 |---------|--------|--------|---------|
@@ -144,8 +147,8 @@ Base scores are medium/standalone (0.3–0.4) — these lists are precision-limi
 (many names/cities are also common words), so lean on conflict resolution or
 raise the analyzer threshold for high-precision use. Org names have their
 legal-form suffixes stripped (`Apple Inc` → `apple`) so they match free text.
-The `orgs-gazetteer` feature embeds ~23 MB; enable it only when you need org
-coverage.
+The `orgs-gazetteer` dataset is ~23 MB (downloaded once, then cached); enable it
+only when you need org coverage.
 
 ### Operators ported
 

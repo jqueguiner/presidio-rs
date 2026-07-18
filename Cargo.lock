@@ -2074,6 +2074,7 @@ dependencies = [
 name = "presidio-analyzer"
 version = "0.1.8"
 dependencies = [
+ "flate2",
  "phonenumber",
  "regex",
  "serde",

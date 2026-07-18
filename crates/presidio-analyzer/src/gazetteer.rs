@@ -54,6 +54,12 @@ pub struct GazetteerRecognizer {
     max_words: usize,
     /// Match case-sensitively (default false → lookups are lowercased).
     case_sensitive: bool,
+    /// Require the matched span to look like a proper noun: reject it when its
+    /// first character is a *lowercase* letter (default false). Script-safe —
+    /// caseless scripts (CJK, Arabic, Hebrew, …) have no lowercase form and are
+    /// always kept, so this only drops lowercase common-word collisions
+    /// (`will`, `mark`, `rose`) without hurting recall on uncased text.
+    require_proper_noun: bool,
 }
 
 impl GazetteerRecognizer {
@@ -67,6 +73,7 @@ impl GazetteerRecognizer {
             min_len: 3,
             max_words: 1,
             case_sensitive: false,
+            require_proper_noun: false,
         }
     }
 
@@ -88,6 +95,20 @@ impl GazetteerRecognizer {
         self
     }
 
+    /// Only emit spans that look like proper nouns — i.e. drop a match whose
+    /// first character is a lowercase letter (default false).
+    ///
+    /// Names/cities/orgs are capitalized wherever they appear in real text, but
+    /// the reference sets are huge and lowercased, so unfiltered lookups fire on
+    /// every common word that collides with a name or place (`will`, `may`,
+    /// `mark`, `rose`, `nice`, `mobile`). Requiring an initial non-lowercase
+    /// character removes those collisions. It is script-safe: caseless scripts
+    /// have no lowercase form, so uncased matches are always kept.
+    pub fn with_require_proper_noun(mut self, yes: bool) -> Self {
+        self.require_proper_noun = yes;
+        self
+    }
+
     /// Number of names in the set.
     pub fn len(&self) -> usize {
         self.names.len()
@@ -102,6 +123,20 @@ impl GazetteerRecognizer {
             s.to_string()
         } else {
             s.to_lowercase()
+        }
+    }
+
+    /// Proper-noun gate: when [`require_proper_noun`](Self::with_require_proper_noun)
+    /// is set, reject a match whose first character is a lowercase letter. Chars
+    /// with no lowercase form (digits, CJK, Arabic, Hebrew, …) are not lowercase
+    /// and therefore always pass, keeping the gate script-safe.
+    fn proper_noun_ok(&self, first_tok: &str) -> bool {
+        if !self.require_proper_noun {
+            return true;
+        }
+        match first_tok.chars().next() {
+            Some(c) => !c.is_lowercase(),
+            None => true,
         }
     }
 }
@@ -142,7 +177,9 @@ impl EntityRecognizer for GazetteerRecognizer {
                     .map(|t| t.2)
                     .collect::<Vec<_>>()
                     .join(" ");
-                if phrase.chars().count() >= self.min_len && self.names.contains(&self.key(&phrase))
+                if phrase.chars().count() >= self.min_len
+                    && self.proper_noun_ok(toks[i].2)
+                    && self.names.contains(&self.key(&phrase))
                 {
                     let start = toks[i].0;
                     let end = toks[i + w - 1].1;
@@ -273,6 +310,7 @@ pub fn first_names() -> GazetteerRecognizer {
         data::load("first_names.txt.gz"),
         0.3,
     )
+    .with_require_proper_noun(true)
 }
 
 /// `LAST_NAME` gazetteer — ~794k multi-country surnames from the census DB
@@ -285,6 +323,7 @@ pub fn last_names() -> GazetteerRecognizer {
         data::load("last_names.txt.gz"),
         0.3,
     )
+    .with_require_proper_noun(true)
 }
 
 /// `LOCATION` gazetteer — ~707k city names + multilingual aliases from GeoNames
@@ -298,6 +337,7 @@ pub fn cities() -> GazetteerRecognizer {
         0.3,
     )
     .with_max_words(6)
+    .with_require_proper_noun(true)
 }
 
 /// `ORGANIZATION` gazetteer — ~3.12M organization names from the GLEIF golden
@@ -313,6 +353,7 @@ pub fn organizations() -> GazetteerRecognizer {
         0.3,
     )
     .with_max_words(10)
+    .with_require_proper_noun(true)
 }
 
 /// `STOCK_TICKER` gazetteer — ~9.9k US-listed symbols from the SEC company
@@ -431,6 +472,44 @@ mod tests {
                 .len(),
             1
         );
+    }
+
+    #[test]
+    fn proper_noun_gate_drops_lowercase_collisions() {
+        // "will", "mark", "rose" are real first names but also common English words.
+        let set: HashSet<String> = ["will", "mark", "rose"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let rec =
+            GazetteerRecognizer::new("G", "FIRST_NAME", set, 0.3).with_require_proper_noun(true);
+        let ents = ["FIRST_NAME".to_string()];
+        // Capitalized -> kept.
+        assert_eq!(rec.analyze("Ask Mark about it", &ents, None).len(), 1);
+        // Lowercase common-word use -> dropped.
+        assert!(rec.analyze("i will mark the rose", &ents, None).is_empty());
+        // Without the gate, all three lowercase words match.
+        let open = GazetteerRecognizer::new(
+            "G",
+            "FIRST_NAME",
+            ["will", "mark", "rose"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect(),
+            0.3,
+        );
+        assert_eq!(open.analyze("i will mark the rose", &ents, None).len(), 3);
+    }
+
+    #[test]
+    fn proper_noun_gate_is_script_safe() {
+        // Caseless scripts have no lowercase form -> always kept, even with the gate.
+        let set: HashSet<String> = ["北京", "東京"].iter().map(|s| s.to_string()).collect();
+        let rec = GazetteerRecognizer::new("G", "LOCATION", set, 0.3)
+            .with_min_len(1)
+            .with_require_proper_noun(true);
+        let res = rec.analyze("从 北京 到 東京", &["LOCATION".to_string()], None);
+        assert_eq!(res.len(), 2);
     }
 
     #[cfg(feature = "names-gazetteer")]

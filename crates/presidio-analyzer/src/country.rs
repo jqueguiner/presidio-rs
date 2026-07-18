@@ -452,6 +452,84 @@ pub fn validate_kr_rrn(text: &str) -> Option<bool> {
     Some(check == d[12] as u32)
 }
 
+/// Taiwan National ID — one leading letter + 9 digits. The letter maps to a
+/// two-digit region code; a weighted mod-10 sum over all digits must be 0.
+pub fn validate_tw_national_id(text: &str) -> Option<bool> {
+    let s: String = text
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric())
+        .map(|c| c.to_ascii_uppercase())
+        .collect();
+    if s.len() != 10 {
+        return Some(false);
+    }
+    let bytes = s.as_bytes();
+    // Letter -> region code (A=10 .. Z=33, non-contiguous per MOI table).
+    let code = match bytes[0] {
+        b'A' => 10,
+        b'B' => 11,
+        b'C' => 12,
+        b'D' => 13,
+        b'E' => 14,
+        b'F' => 15,
+        b'G' => 16,
+        b'H' => 17,
+        b'I' => 34,
+        b'J' => 18,
+        b'K' => 19,
+        b'L' => 20,
+        b'M' => 21,
+        b'N' => 22,
+        b'O' => 35,
+        b'P' => 23,
+        b'Q' => 24,
+        b'R' => 25,
+        b'S' => 26,
+        b'T' => 27,
+        b'U' => 28,
+        b'V' => 29,
+        b'W' => 32,
+        b'X' => 30,
+        b'Y' => 31,
+        b'Z' => 33,
+        _ => return Some(false),
+    };
+    let d: Vec<u32> = s[1..]
+        .bytes()
+        .map(|b| (b as char).to_digit(10).unwrap_or(99))
+        .collect();
+    if d.iter().any(|&x| x > 9) {
+        return Some(false);
+    }
+    // n1*1 + n2*9 + d1*8 + d2*7 + ... + d8*1 + check*1
+    let mut sum = code / 10 + (code % 10) * 9;
+    for (i, &digit) in d.iter().take(8).enumerate() {
+        sum += digit * (8 - i as u32);
+    }
+    sum += d[8];
+    Some(sum.is_multiple_of(10))
+}
+
+/// Czech birth number (rodné číslo). Modern (10-digit) numbers must be divisible
+/// by 11, with the historical 1954-1985 exception (first 9 digits ≡ 10 mod 11 and
+/// check digit 0). Pre-1954 9-digit numbers carry no check digit -> `None` keeps
+/// the base score.
+pub fn validate_cz_birth_number(text: &str) -> Option<bool> {
+    let d = digits(text);
+    match d.len() {
+        9 => None,
+        10 => {
+            let full: u64 = d.iter().fold(0u64, |acc, &x| acc * 10 + x as u64);
+            if full.is_multiple_of(11) {
+                return Some(true);
+            }
+            let first9 = full / 10;
+            Some(first9 % 11 == 10 && d[9] == 0)
+        }
+        _ => Some(false),
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Recognizers
 // ---------------------------------------------------------------------------
@@ -867,6 +945,80 @@ pub fn mx_curp() -> PatternRecognizer {
     .with_context(&["curp"])
 }
 
+/// Taiwan National ID — letter + 9 digits, mod-10 checksum promotes to 1.0.
+pub fn tw_national_id() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "TwNationalIdRecognizer",
+        "TW_NATIONAL_ID",
+        vec![p("TW National ID", r"\b[A-Za-z][0-9]{9}\b", 0.3)],
+    )
+    .with_validator(validate_tw_national_id)
+    .with_context(&["身分證", "national id", "id number", "統一證號"])
+}
+
+/// Czech birth number (rodné číslo) — 6 digits + 3-4 digits, mod-11 checksum.
+pub fn cz_birth_number() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "CzBirthNumberRecognizer",
+        "CZ_BIRTH_NUMBER",
+        vec![p("Rodné číslo", r"\b\d{6}/?\d{3,4}\b", 0.1)],
+    )
+    .with_validator(validate_cz_birth_number)
+    .with_context(&["rodné číslo", "rc", "birth number"])
+}
+
+/// Canadian postal code — "A1A 1A1" with Canada Post's restricted letter set.
+/// Case-insensitive; the space is optional (low-confidence when omitted is folded
+/// into the single pattern and leans on context).
+pub fn ca_postal_code() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "CaPostalCodeRecognizer",
+        "CA_POSTAL_CODE",
+        vec![p(
+            "CA Postal Code",
+            r"(?i)\b[ABCEGHJ-NPR-TVXY]\d[ABCEGHJ-NPR-TV-Z] ?\d[ABCEGHJ-NPR-TV-Z]\d\b",
+            0.4,
+        )],
+    )
+    .with_context(&[
+        "postal code",
+        "postcode",
+        "zip",
+        "mailing",
+        "shipping",
+        "code postal",
+        "adresse",
+        "courrier",
+        "livraison",
+    ])
+}
+
+/// South African company registration — distinctive `YYYY/NNNNNN/NN` CIPC format.
+pub fn za_company_registration() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "ZaCompanyRegistrationRecognizer",
+        "ZA_COMPANY_REGISTRATION",
+        vec![p("ZA Company Reg", r"\b(?:19|20)\d{2}/\d{6}/\d{2}\b", 0.4)],
+    )
+    .with_context(&[
+        "cipc",
+        "company registration",
+        "registration number",
+        "close corporation",
+    ])
+}
+
+/// South African VAT number — 10 digits starting with 4 (no public check digit),
+/// weak on its own and context-gated.
+pub fn za_vat_number() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "ZaVatRecognizer",
+        "ZA_VAT_NUMBER",
+        vec![p("ZA VAT", r"\b4\d{9}\b", 0.1)],
+    )
+    .with_context(&["vat", "vat number", "sars", "tax"])
+}
+
 /// Every country-specific recognizer, ready to register.
 pub fn all_country() -> Vec<Box<dyn EntityRecognizer>> {
     vec![
@@ -911,6 +1063,11 @@ pub fn all_country() -> Vec<Box<dyn EntityRecognizer>> {
         Box::new(jp_mynumber()),
         Box::new(mx_rfc()),
         Box::new(mx_curp()),
+        Box::new(tw_national_id()),
+        Box::new(cz_birth_number()),
+        Box::new(ca_postal_code()),
+        Box::new(za_company_registration()),
+        Box::new(za_vat_number()),
     ]
 }
 
@@ -1093,5 +1250,22 @@ mod tests {
         assert_eq!(validate_kr_rrn("9412011234569"), Some(true));
         assert_eq!(validate_kr_rrn("9412011234568"), Some(false));
         assert_eq!(validate_kr_rrn("12"), Some(false));
+    }
+
+    #[test]
+    fn tw_national_id_check() {
+        assert_eq!(validate_tw_national_id("A123456789"), Some(true));
+        assert_eq!(validate_tw_national_id("A123456788"), Some(false));
+        assert_eq!(validate_tw_national_id("1123456789"), Some(false)); // no letter
+        assert_eq!(validate_tw_national_id("A12345"), Some(false));
+    }
+
+    #[test]
+    fn cz_birth_number_check() {
+        assert_eq!(validate_cz_birth_number("7801232340"), Some(true));
+        assert_eq!(validate_cz_birth_number("780123/2340"), Some(true));
+        assert_eq!(validate_cz_birth_number("7801232341"), Some(false));
+        assert_eq!(validate_cz_birth_number("780123234"), None); // 9-digit, pre-1954
+        assert_eq!(validate_cz_birth_number("12"), Some(false));
     }
 }

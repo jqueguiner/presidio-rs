@@ -264,6 +264,57 @@ fn imei_and_vin_detected_end_to_end() {
 }
 
 #[test]
+fn batch_country_recognizers_end_to_end() {
+    let engine = AnalyzerEngine::default();
+    let ents = engine.get_supported_entities("en");
+    for e in [
+        "TW_NATIONAL_ID",
+        "CZ_BIRTH_NUMBER",
+        "CA_POSTAL_CODE",
+        "ZA_COMPANY_REGISTRATION",
+        "ZA_VAT_NUMBER",
+    ] {
+        assert!(ents.contains(&e.to_string()), "missing {e}");
+    }
+
+    // TW national ID: valid checksum promoted to 1.0; bad checksum dropped.
+    let tw = engine.analyze("id number A123456789", "en", None, None);
+    let hit = tw
+        .iter()
+        .find(|r| r.entity_type == "TW_NATIONAL_ID")
+        .unwrap();
+    assert!((hit.score - 1.0).abs() < 1e-9);
+    assert!(engine
+        .analyze("id number A123456788", "en", None, None)
+        .iter()
+        .all(|r| r.entity_type != "TW_NATIONAL_ID"));
+
+    // CZ birth number: mod-11 valid -> 1.0.
+    let cz = engine.analyze("rodné číslo 780123/2340", "en", None, None);
+    let hit = cz
+        .iter()
+        .find(|r| r.entity_type == "CZ_BIRTH_NUMBER")
+        .unwrap();
+    assert!((hit.score - 1.0).abs() < 1e-9);
+
+    // CA postal code: canonical + space-omitted, case-insensitive.
+    assert!(engine
+        .analyze("postal code K1A 0B1", "en", None, None)
+        .iter()
+        .any(|r| r.entity_type == "CA_POSTAL_CODE"));
+    assert!(engine
+        .analyze("mailing k1a0b1", "en", None, None)
+        .iter()
+        .any(|r| r.entity_type == "CA_POSTAL_CODE"));
+
+    // ZA company registration: distinctive slash format.
+    assert!(engine
+        .analyze("cipc 2019/123456/07", "en", None, None)
+        .iter()
+        .any(|r| r.entity_type == "ZA_COMPANY_REGISTRATION"));
+}
+
+#[test]
 fn validators_edge_cases() {
     use presidio_analyzer::validators::*;
     assert_eq!(validate_us_ssn("123-45-6789"), None);

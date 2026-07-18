@@ -8,7 +8,10 @@ repository.workspace = true
 description = "PII detection engine — Rust port of presidio-analyzer"
 # Parquet files are the canonical dataset source-of-truth; the build only needs
 # the derived .txt.gz, so keep the published crate lean.
-exclude = ["data/*.parquet", "data/README.md"]
+# The gazetteer data (~27 MB gz + parquet) exceeds the crates.io size limit, so
+# it is excluded from the published package. Gazetteer features therefore only
+# build from a git/path checkout, not from crates.io.
+exclude = ["data"]
 
 [dependencies]
 regex.workspace = true

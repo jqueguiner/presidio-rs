@@ -8,7 +8,7 @@ repository.workspace = true
 description = "Optional Candle-based NER backend for presidio-analyzer (PERSON/LOCATION/ORG/...)"
 
 [dependencies]
-presidio-analyzer = { path = "../presidio-analyzer" }
+presidio-analyzer = { path = "../presidio-analyzer", version = "0.1.9" }
 candle-core = "0.8"
 candle-nn = "0.8"
 candle-transformers = "0.8"

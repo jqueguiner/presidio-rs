@@ -314,6 +314,70 @@ fn batch_country_recognizers_end_to_end() {
         .any(|r| r.entity_type == "ZA_COMPANY_REGISTRATION"));
 }
 
+// Upstream issue #1444: context words must only count inside the prefix/suffix
+// window. The fork bounds the window correctly — verify a word just outside it
+// does NOT boost the score.
+#[test]
+fn context_word_outside_window_is_ignored() {
+    let enh = LemmaContextAwareEnhancer {
+        context_similarity_factor: 0.35,
+        min_score_with_context: 0.4,
+        prefix_count: 1,
+        suffix_count: 0,
+    };
+    let ctx = || {
+        let mut r = RecognizerResult::new("X", 15, 19, 0.3);
+        r.context = vec!["card".to_string()];
+        r.analysis_explanation = Some(AnalysisExplanation::default());
+        r
+    };
+
+    // "card" sits 2 tokens before the entity, outside prefix_count=1 -> no boost.
+    let nlp_far = SimpleNlpEngine::new().process("card xxxx yyyy 1234", "en");
+    let mut far = vec![ctx()];
+    enh.enhance(&mut far, &nlp_far, &[]);
+    assert!((far[0].score - 0.3).abs() < 1e-9, "should not boost");
+
+    // "card" immediately before the entity, inside the window -> boosted.
+    let nlp_near = SimpleNlpEngine::new().process("aaaa yyyy card 1234", "en");
+    let mut near = vec![ctx()];
+    enh.enhance(&mut near, &nlp_near, &[]);
+    assert!(near[0].score > 0.3, "should boost");
+}
+
+// Upstream issue #1156: when a larger span has a LOWER score than a smaller
+// contained one, the higher-scoring entity should win. The fork resolves by
+// score first (not span length), so it does NOT reproduce the upstream bug.
+#[test]
+fn conflict_resolution_favors_score_over_span() {
+    let mut reg = RecognizerRegistry::new();
+    reg.add(Box::new(PatternRecognizer::new(
+        "Big",
+        "BIG",
+        vec![Pattern::new("big", r"A{5}", 0.1)],
+    )));
+    reg.add(Box::new(PatternRecognizer::new(
+        "Small",
+        "SMALL",
+        vec![Pattern::new("small", r"A{3}", 0.9)],
+    )));
+    let engine = AnalyzerEngine::new().with_registry(reg);
+    let res = engine.analyze("AAAAA", "en", None, None);
+    assert_eq!(res.len(), 1);
+    assert_eq!(res[0].entity_type, "SMALL"); // higher score wins, not wider span
+}
+
+// Upstream issue #1603: Presidio compiles pattern regexes case-INsensitive by
+// default. The fork is case-SENSITIVE by default (safer for case-significant
+// patterns like Base58 crypto addresses). Lock that contract.
+#[test]
+fn pattern_regex_is_case_sensitive() {
+    let rec = PatternRecognizer::new("Up", "UP", vec![Pattern::new("up", r"[A-Z]{2}", 0.5)]);
+    let res = rec.analyze("ab AB", &["UP".to_string()], None);
+    assert_eq!(res.len(), 1); // only "AB", not "ab"
+    assert_eq!(res[0].start, 3);
+}
+
 #[test]
 fn validators_edge_cases() {
     use presidio_analyzer::validators::*;

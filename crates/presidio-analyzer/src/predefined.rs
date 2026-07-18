@@ -81,8 +81,10 @@ pub fn iban() -> PatternRecognizer {
         "IbanRecognizer",
         "IBAN_CODE",
         vec![p(
+            // Case-insensitive: real-world IBANs are often typed lowercase
+            // (upstream #1603). The validator uppercases before the mod-97 check.
             "IBAN Generic",
-            r"\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]){11,30}\b",
+            r"(?i)\b[A-Z]{2}\d{2}(?:[ ]?[A-Z0-9]){11,30}\b",
             0.3,
         )],
     )

@@ -152,6 +152,45 @@ pub fn date_time() -> PatternRecognizer {
     .with_context(&["date", "born", "birthday", "day", "year"])
 }
 
+/// IMEI — 15-digit mobile-device identifier, promoted to 1.0 by Luhn. The
+/// `regex` crate has no backreferences, so the separator is matched loosely and
+/// the validator (which strips separators) enforces the real structure.
+pub fn imei() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "ImeiRecognizer",
+        "IMEI",
+        vec![p("IMEI", r"\b\d{2}[-\s]?\d{6}[-\s]?\d{6}[-\s]?\d\b", 0.5)],
+    )
+    .with_validator(validators::validate_imei)
+    .with_context(&[
+        "imei",
+        "mobile device",
+        "handset",
+        "device serial",
+        "phone serial",
+        "serial number",
+    ])
+}
+
+/// VIN — 17-char vehicle identification number (excludes I/O/Q), promoted to 1.0
+/// by the ISO 3779 mod-11 check digit.
+pub fn vin() -> PatternRecognizer {
+    PatternRecognizer::new(
+        "VinRecognizer",
+        "VIN",
+        vec![p("VIN", r"\b[A-HJ-NPR-Z0-9]{17}\b", 0.5)],
+    )
+    .with_validator(validators::validate_vin)
+    .with_context(&[
+        "vin",
+        "vehicle identification",
+        "vehicle identification number",
+        "chassis",
+        "chassis number",
+        "vehicle",
+    ])
+}
+
 /// US_SSN.
 pub fn us_ssn() -> PatternRecognizer {
     PatternRecognizer::new(
@@ -174,6 +213,8 @@ pub fn all_english() -> Vec<Box<dyn EntityRecognizer>> {
         Box::new(mac_address()),
         Box::new(url()),
         Box::new(date_time()),
+        Box::new(imei()),
+        Box::new(vin()),
         Box::new(us_ssn()),
     ]
 }

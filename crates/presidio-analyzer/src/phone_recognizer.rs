@@ -54,15 +54,53 @@ impl Default for PhoneRecognizer {
             language: "en".to_string(),
             // Presidio's DEFAULT_SUPPORTED_REGIONS. Safe to keep broad because
             // the grouping-leniency filter below rejects non-phone digit shapes.
+            // Broad default region set: for multilingual PII, national-format
+            // numbers only validate under their own region, so 8 regions missed
+            // most non-US/UK numbers. libphonenumber still validates each
+            // candidate (the grouping-leniency filter below rejects non-phone
+            // shapes), so widening regions lifts recall without opening the door
+            // to SSN/date false positives.
             regions: vec![
                 country::Id::US,
                 country::Id::GB,
+                country::Id::CA,
+                country::Id::AU,
+                country::Id::IE,
+                country::Id::NZ,
+                country::Id::ZA,
+                country::Id::IN,
                 country::Id::DE,
                 country::Id::FR,
+                country::Id::IT,
+                country::Id::ES,
+                country::Id::PT,
+                country::Id::NL,
+                country::Id::BE,
+                country::Id::CH,
+                country::Id::AT,
+                country::Id::SE,
+                country::Id::NO,
+                country::Id::DK,
+                country::Id::FI,
+                country::Id::PL,
+                country::Id::CZ,
+                country::Id::RO,
+                country::Id::HU,
+                country::Id::GR,
+                country::Id::TR,
+                country::Id::RU,
                 country::Id::IL,
-                country::Id::IN,
-                country::Id::CA,
                 country::Id::BR,
+                country::Id::MX,
+                country::Id::AR,
+                country::Id::JP,
+                country::Id::CN,
+                country::Id::KR,
+                country::Id::SG,
+                country::Id::MY,
+                country::Id::PH,
+                country::Id::ID,
+                country::Id::TH,
             ],
             context: [
                 "phone",

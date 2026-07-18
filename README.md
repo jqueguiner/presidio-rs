@@ -185,6 +185,7 @@ on the engine's factory via `factory_mut()`.
 | `PHONE_NUMBER` — real libphonenumber (`phonenumber`), full default region set + `Leniency.VALID` grouping emulation | ✅ (parity) |
 | Anonymizer operators: replace, redact, mask, hash, keep, encrypt, decrypt, custom, **surrogate** (local) | ✅ (parity) |
 | Deanonymizer + AES-CBC encrypt/decrypt | ✅ |
+| `OperatorResult.score` — detection confidence carried into anonymizer output for audit/compliance (upstream #2057) | ✅ |
 | Per-call options: `allow_list` (exact/regex), ad-hoc recognizers, supplemental `context` | ✅ |
 | Context-aware score enhancement, conflict resolution | ✅ |
 | **NER** (`PERSON`/`LOCATION`/`ORGANIZATION`/`NRP`) — optional pure-Rust Candle crate (`presidio-ner`), configurable model/labels/threshold | ✅ (English model; CI-verified) |

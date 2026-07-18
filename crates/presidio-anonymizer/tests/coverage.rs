@@ -204,6 +204,34 @@ fn entities_helpers() {
 }
 
 #[test]
+fn operator_result_carries_score() {
+    let eng = AnonymizerEngine::default();
+    let out = eng
+        .anonymize(
+            "hi bob",
+            vec![RecognizerResult::new("PERSON", 3, 6, 0.87)],
+            &HashMap::new(),
+        )
+        .unwrap();
+    // Detection score preserved on the operator result (issue #2057).
+    assert_eq!(out.items[0].score, Some(0.87));
+    // Serialized into JSON.
+    let json = serde_json::to_string(&out.items[0]).unwrap();
+    assert!(json.contains("\"score\":0.87"), "json was: {json}");
+
+    // A result built without a score omits the field entirely (backward compat).
+    let bare = OperatorResult {
+        start: 0,
+        end: 1,
+        entity_type: "X".to_string(),
+        text: "*".to_string(),
+        operator: "replace".to_string(),
+        score: None,
+    };
+    assert!(!serde_json::to_string(&bare).unwrap().contains("score"));
+}
+
+#[test]
 fn engine_fallbacks_and_errors() {
     let eng = AnonymizerEngine::default();
 
@@ -262,6 +290,7 @@ fn deanonymize_paths() {
         entity_type: "X".to_string(),
         text: "abc".to_string(),
         operator: "x".to_string(),
+        score: None,
     };
     assert!(de.deanonymize("abc", vec![item], &dops).is_err());
 
@@ -279,6 +308,7 @@ fn deanonymize_paths() {
         entity_type: "A".to_string(),
         text: "xyz".to_string(),
         operator: "e".to_string(),
+        score: None,
     };
     let r = de2.deanonymize("xyz", vec![item2], &dops2).unwrap();
     assert_eq!(r.text, "xyz");

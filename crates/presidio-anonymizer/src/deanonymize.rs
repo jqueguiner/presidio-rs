@@ -79,6 +79,7 @@ impl DeanonymizeEngine {
                 entity_type: e.entity_type.clone(),
                 text: new_text,
                 operator: config.operator_name.clone(),
+                score: None, // deanonymization has no detection score
             });
             last = e.end;
         }

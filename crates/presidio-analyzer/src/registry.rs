@@ -3,6 +3,7 @@
 //! Port of `presidio_analyzer.RecognizerRegistry`.
 
 use crate::country;
+use crate::gazetteer;
 use crate::ner_recognizer::NerRecognizer;
 use crate::phone_recognizer::PhoneRecognizer;
 use crate::predefined;
@@ -46,6 +47,13 @@ impl RecognizerRegistry {
             }
             self.recognizers.push(Box::new(PhoneRecognizer::default()));
             self.recognizers.push(Box::new(NerRecognizer::default()));
+        }
+        // Gazetteers are language-agnostic multilingual reference lists (names,
+        // cities, orgs, tickers), so register them for every language. Each is
+        // behind its own cargo feature; with none enabled `all_gazetteers()` is
+        // empty and this is a no-op (zero behavior change for default builds).
+        for r in gazetteer::all_gazetteers() {
+            self.recognizers.push(r);
         }
     }
 

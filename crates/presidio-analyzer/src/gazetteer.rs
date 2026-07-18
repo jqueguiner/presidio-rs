@@ -150,6 +150,12 @@ impl EntityRecognizer for GazetteerRecognizer {
         vec![self.entity.clone()]
     }
 
+    fn is_language_agnostic(&self) -> bool {
+        // A name / city / org surface-string lookup does not depend on the
+        // document language, so gazetteers are active for every language.
+        true
+    }
+
     fn analyze(
         &self,
         text: &str,

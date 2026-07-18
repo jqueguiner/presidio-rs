@@ -19,7 +19,19 @@ phonenumber = "0.3"
 flate2 = { version = "1", optional = true }
 
 [features]
-# Embeds ~196k first names + ~794k surnames (multi-country census DB) as
-# gazetteer recognizers. Off by default — pulls in flate2 and ~2.6 MB of
-# compressed data.
+# Gazetteer recognizers backed by embedded, gzipped reference data. Each dataset
+# is a separate feature so you only pay for what you enable. All pull in flate2.
+#   names-gazetteer    FIRST_NAME + LAST_NAME  (~196k + ~794k)   ~2.6 MB
+#   cities-gazetteer   LOCATION                (~707k)            ~2.6 MB
+#   orgs-gazetteer     ORGANIZATION            (~3.17M, GLEIF)    ~24 MB
+#   tickers-gazetteer  STOCK_TICKER            (~9.9k, SEC)       ~23 KB
 names-gazetteer = ["dep:flate2"]
+cities-gazetteer = ["dep:flate2"]
+orgs-gazetteer = ["dep:flate2"]
+tickers-gazetteer = ["dep:flate2"]
+gazetteers-all = [
+    "names-gazetteer",
+    "cities-gazetteer",
+    "orgs-gazetteer",
+    "tickers-gazetteer",
+]

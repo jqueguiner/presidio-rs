@@ -115,22 +115,35 @@ types total.
 **NER** entities (`PERSON`, `LOCATION`, `ORGANIZATION`, `NRP`) are wired through
 `NerRecognizer` and activate once an NLP engine with NER is set.
 
-**Name gazetteers** (optional, `names-gazetteer` feature) — `FIRST_NAME` and
-`LAST_NAME` recognizers backed by census name lists (~196k first names, ~794k
-surnames; probabilities/ranks stripped). Exact token lookup via a `HashSet`
-(`GazetteerRecognizer`), not regex, so the large sets stay fast. Off by default
-(pulls `flate2` + ~2.6 MB embedded gzipped data). Register explicitly:
+**Gazetteers** (optional, feature-gated) — reference-data recognizers backed by
+large embedded lists, matched by exact token/phrase lookup via a `HashSet`
+(`GazetteerRecognizer`), not regex, so the sets stay fast. Each dataset is its
+own cargo feature (all pull `flate2`); metadata/probabilities are stripped from
+every source, leaving only the surface form.
+
+| Feature | Entity | Source | Entries |
+|---------|--------|--------|---------|
+| `names-gazetteer` | `FIRST_NAME`, `LAST_NAME` | census names DB | ~196k / ~794k |
+| `cities-gazetteer` | `LOCATION` | GeoNames `cities500` (+ multilingual aliases) | ~707k |
+| `orgs-gazetteer` | `ORGANIZATION` | GLEIF golden copy (legal names) | ~3.17M |
+| `tickers-gazetteer` | `STOCK_TICKER` | SEC company tickers | ~9.9k |
+| `gazetteers-all` | all of the above | | |
+
+Multi-word entries (cities, orgs) match greedily longest-first; tickers match
+case-sensitively (uppercase) so they don't fire on common lowercase words.
+Register explicitly:
 
 ```rust
 use presidio_analyzer::{gazetteer, RecognizerRegistry, AnalyzerEngine};
 let mut reg = RecognizerRegistry::with_predefined("en");
-for g in gazetteer::all_gazetteers() { reg.add(g); }
+for g in gazetteer::all_gazetteers() { reg.add(g); } // only enabled features load
 let engine = AnalyzerEngine::new().with_registry(reg);
 ```
 
-Base score is medium/standalone (0.3) — name lists are precision-limited (many
-names are also common words), so gate on downstream conflict resolution or raise
-the analyzer threshold for high-precision use.
+Base scores are medium/standalone (0.3–0.4) — these lists are precision-limited
+(many names/cities are also common words), so lean on conflict resolution or
+raise the analyzer threshold for high-precision use. The `orgs-gazetteer` feature
+embeds ~24 MB; enable it only when you need org coverage.
 
 ### Operators ported
 

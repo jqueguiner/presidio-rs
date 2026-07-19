@@ -61,10 +61,9 @@ impl Default for PhoneRecognizer {
             // shapes), so widening regions lifts recall without opening the door
             // to SSN/date false positives.
             regions: vec![
-                "US", "GB", "CA", "AU", "IE", "NZ", "ZA", "IN", "DE", "FR", "IT", "ES", "PT",
-                "NL", "BE", "CH", "AT", "SE", "NO", "DK", "FI", "PL", "CZ", "RO", "HU", "GR",
-                "TR", "RU", "IL", "BR", "MX", "AR", "JP", "CN", "KR", "SG", "MY", "PH", "ID",
-                "TH",
+                "US", "GB", "CA", "AU", "IE", "NZ", "ZA", "IN", "DE", "FR", "IT", "ES", "PT", "NL",
+                "BE", "CH", "AT", "SE", "NO", "DK", "FI", "PL", "CZ", "RO", "HU", "GR", "TR", "RU",
+                "IL", "BR", "MX", "AR", "JP", "CN", "KR", "SG", "MY", "PH", "ID", "TH",
             ],
             context: [
                 "phone",

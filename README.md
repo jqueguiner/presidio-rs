@@ -118,12 +118,15 @@ let result = anon.anonymize(text, spans, &ops).unwrap();
 (mod-97), `EMAIL_ADDRESS`, `IP_ADDRESS` (v4/v6), `MAC_ADDRESS`, `URL`,
 `DATE_TIME`, `IMEI` (Luhn), `VIN` (ISO 3779 mod-11), `US_SSN`.
 
-**Phone:** `PHONE_NUMBER` via the [`phonenumber`](https://crates.io/crates/phonenumber)
-crate (Rust libphonenumber). Runs Presidio's full default region set
-(`US/GB/DE/FR/IL/IN/CA/BR`) and emulates libphonenumber's `Leniency.VALID`
-grouping check so SSNs/dates don't validate as phone numbers in permissive
-regions. `+CC` international numbers are detected regardless of region.
-`PhoneRecognizer.regions` is configurable.
+**Phone:** `PHONE_NUMBER` via the [`phonenumber-rs`](https://crates.io/crates/phonenumber-rs)
+crate (a Rust rewrite of Google's libphonenumber). Runs a broad **40-region**
+default set (US/GB/CA/AU/IE/NZ/ZA/IN + most of Europe + BR/MX/AR/JP/CN/KR/SG/…)
+and emulates libphonenumber's `Leniency.VALID` grouping check so SSNs/dates don't
+validate as phone numbers in permissive regions. `+CC` international numbers are
+detected regardless of region. National-format numbers only validate under their
+own region, so the wide default set lifts multilingual recall without adding
+false positives. `PhoneRecognizer.regions` (ISO 3166-1 alpha-2 codes) is
+configurable.
 
 **Country-specific** (checksum-validated → promoted to 1.0): `UK_NHS` (mod-11),
 `ES_NIF`, `ES_NIE`, `PL_PESEL`, `SG_NRIC_FIN`, `AU_ABN` (mod-89), `AU_TFN`,
@@ -243,7 +246,7 @@ on the engine's factory via `factory_mut()`.
 | Pattern-recognizer framework, registry, analyzer-engine orchestration | ✅ |
 | ~61 entity types; 29 checksum-validated national IDs across ~22 countries + generic `VIN`/`IMEI` | ✅ (parity+) |
 | Checksums: Luhn, IBAN mod-97, Base58Check, NHS, PESEL, SG NRIC, AU ABN/TFN/ACN/Medicare, Aadhaar (Verhoeff), FI HETU, BR CPF/CNPJ, NL BSN, TR, BE, PT, CN (ISO 7064), RU SNILS, DE tax-id, SE, ZA, KR, ES NIF/NIE, IT VAT, CA SIN, TW national-id (mod-10), CZ birth-number (mod-11) | ✅ |
-| `PHONE_NUMBER` — real libphonenumber (`phonenumber`), full default region set + `Leniency.VALID` grouping emulation | ✅ (parity) |
+| `PHONE_NUMBER` — real libphonenumber (`phonenumber-rs`), broad 40-region default set + `Leniency.VALID` grouping emulation | ✅ (parity+) |
 | Anonymizer operators: replace, redact, mask, hash, keep, encrypt, decrypt, custom, **surrogate** (local) | ✅ (parity) |
 | Deanonymizer + AES-CBC encrypt/decrypt | ✅ |
 | `OperatorResult.score` — detection confidence carried into anonymizer output for audit/compliance (upstream #2057) | ✅ |

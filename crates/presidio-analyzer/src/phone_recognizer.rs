@@ -28,7 +28,7 @@ mod once_cell_regex {
     static CELL: OnceLock<Regex> = OnceLock::new();
 
     /// A phone number is a `+`-optional run of 7+ digits interspersed with the
-    /// usual separators. Deliberately broad — `phonenumber` does the real work.
+    /// usual separators. Deliberately broad — `phonenumber-rs` does the real work.
     #[allow(non_snake_case)]
     pub fn CANDIDATE() -> &'static Regex {
         CELL.get_or_init(|| {

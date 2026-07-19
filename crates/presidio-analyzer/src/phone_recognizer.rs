@@ -28,7 +28,7 @@ mod once_cell_regex {
     static CELL: OnceLock<Regex> = OnceLock::new();
 
     /// A phone number is a `+`-optional run of 7+ digits interspersed with the
-    /// usual separators. Deliberately broad — `phonenumber-rs` does the real work.
+    /// usual separators. Deliberately broad — `phonenumber` does the real work.
     #[allow(non_snake_case)]
     pub fn CANDIDATE() -> &'static Regex {
         CELL.get_or_init(|| {
@@ -61,10 +61,9 @@ impl Default for PhoneRecognizer {
             // shapes), so widening regions lifts recall without opening the door
             // to SSN/date false positives.
             regions: vec![
-                "US", "GB", "CA", "AU", "IE", "NZ", "ZA", "IN", "DE", "FR", "IT", "ES", "PT",
-                "NL", "BE", "CH", "AT", "SE", "NO", "DK", "FI", "PL", "CZ", "RO", "HU", "GR",
-                "TR", "RU", "IL", "BR", "MX", "AR", "JP", "CN", "KR", "SG", "MY", "PH", "ID",
-                "TH",
+                "US", "GB", "CA", "AU", "IE", "NZ", "ZA", "IN", "DE", "FR", "IT", "ES", "PT", "NL",
+                "BE", "CH", "AT", "SE", "NO", "DK", "FI", "PL", "CZ", "RO", "HU", "GR", "TR", "RU",
+                "IL", "BR", "MX", "AR", "JP", "CN", "KR", "SG", "MY", "PH", "ID", "TH",
             ],
             context: [
                 "phone",
@@ -81,6 +80,68 @@ impl Default for PhoneRecognizer {
             score: 0.75,
         }
     }
+}
+
+/// Language-aware phone regions: the spoken/document language constrains which
+/// national numbering plans are plausible. A `fr` document's bare number should
+/// validate against francophone regions (France, Québec/Canada, Belgium,
+/// Switzerland, francophone Africa…) — never Italy. `+CC` numbers are unaffected
+/// (the explicit country code wins), so this only tightens national-format /
+/// bare-digit candidates, which is exactly where the false positives are
+/// (8-digit account numbers validating as short-numbering-plan phones).
+/// Returns `None` for an unmapped language → fall back to the broad default set.
+fn lang_regions(language: &str) -> Option<&'static [&'static str]> {
+    let l = language
+        .split(['-', '_'])
+        .next()
+        .unwrap_or(language)
+        .to_ascii_lowercase();
+    Some(match l.as_str() {
+        "en" => &["US", "GB", "CA", "AU", "IE", "ZA", "IN"] as &[&str],
+        "fr" => &[
+            "FR", "CA", "BE", "CH", "LU", "MC", "SN", "CI", "CM", "ML", "TN", "MA", "DZ",
+        ],
+        "de" => &["DE", "AT", "CH", "LI", "LU"],
+        "it" => &["IT", "CH", "SM"],
+        "es" => &[
+            "ES", "MX", "AR", "CO", "CL", "PE", "VE", "EC", "GT", "BO", "DO", "UY", "PY",
+        ],
+        "pt" => &["PT", "BR", "AO", "MZ"],
+        "nl" => &["NL", "BE", "SR"],
+        "ru" => &["RU", "BY", "KZ", "KG"],
+        "pl" => &["PL"],
+        "tr" => &["TR"],
+        "ar" => &[
+            "SA", "AE", "EG", "MA", "DZ", "TN", "JO", "LB", "IQ", "KW", "QA", "LY", "SD",
+        ],
+        "zh" => &["CN", "TW"],
+        "ja" => &["JP"],
+        "ko" => &["KR"],
+        "hi" => &["IN"],
+        "he" => &["IL"],
+        "el" => &["GR", "CY"],
+        "sv" => &["SE"],
+        "no" | "nn" | "nb" => &["NO"],
+        "da" => &["DK"],
+        "fi" => &["FI"],
+        "cs" => &["CZ"],
+        "sk" => &["SK"],
+        "ro" => &["RO", "MD"],
+        "hu" => &["HU"],
+        "bg" => &["BG"],
+        "uk" => &["UA"],
+        "id" => &["ID"],
+        "ms" => &["MY", "BN"],
+        "vi" => &["VN"],
+        "th" => &["TH"],
+        "ca" => &["ES", "AD"],
+        "sr" => &["RS"],
+        "tl" => &["PH"],
+        "lt" => &["LT"],
+        "et" => &["EE"],
+        "yo" => &["NG"],
+        _ => return None,
+    })
 }
 
 /// Lengths of each maximal run of ASCII digits (the "grouping shape").
@@ -114,8 +175,19 @@ impl PhoneRecognizer {
     ///   matches the number's national formatting (rejects SSN/date shapes).
     fn passes_leniency(candidate: &str, number: &PhoneNumber) -> bool {
         let cand = candidate.trim();
-        if cand.starts_with('+') || !has_separator(cand) {
+        // `+CC` numbers are unambiguous (the country code is explicit) → accept.
+        if cand.starts_with('+') {
             return true;
+        }
+        // A bare digit run (no separators) is the dangerous case: 8-digit account
+        // numbers validate as phones under short-numbering-plan regions (MC, LU,
+        // NO, SG…). Real phones sit in the E.164 range, so require 9–15 national
+        // digits. This rejects the 8-digit account-number and 16-digit card/masked
+        // false positives while keeping every genuine bare number (the gold set
+        // has no true bare phone outside this range).
+        if !has_separator(cand) {
+            let nd = cand.chars().filter(|c| c.is_ascii_digit()).count();
+            return (9..=15).contains(&nd);
         }
         let national = format_national(number);
         group_lengths(cand) == group_lengths(&national)
@@ -143,16 +215,23 @@ impl EntityRecognizer for PhoneRecognizer {
         &self,
         text: &str,
         entities: &[String],
-        _nlp: Option<&NlpArtifacts>,
+        nlp: Option<&NlpArtifacts>,
     ) -> Vec<RecognizerResult> {
         if !entities.iter().any(|e| e == &self.entity) {
             return Vec::new();
         }
 
+        // Language-aware region set: constrain the numbering plans a bare/national
+        // candidate may validate under to those plausible for the document's
+        // language. Falls back to the broad default for unmapped languages.
+        let regions: &[&str] = nlp
+            .and_then(|a| lang_regions(&a.language))
+            .unwrap_or(&self.regions);
+
         let mut out = Vec::new();
         for m in CANDIDATE().find_iter(text) {
             let candidate = m.as_str();
-            for &region in &self.regions {
+            for &region in regions {
                 match parse(Some(region), candidate) {
                     Ok(number)
                         if is_valid_number(&number)

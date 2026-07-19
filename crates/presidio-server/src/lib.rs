@@ -24,8 +24,6 @@ use presidio_anonymizer::{
     AnonymizerEngine, EngineResult, OperatorConfig, RecognizerResult as AnonResult,
 };
 
-pub mod limina;
-
 pub struct AppState {
     pub analyzer: AnalyzerEngine,
     pub anonymizer: AnonymizerEngine,
@@ -53,16 +51,6 @@ pub fn app_with(state: Arc<AppState>) -> Router {
         .route("/analyze", post(analyze))
         .route("/anonymize", post(anonymize))
         .route("/anonymize_text", post(anonymize_text))
-        // Limina / Private AI-compatible (v4) surface
-        .route("/process/text", post(limina::process_text))
-        .route("/ner/text", post(limina::ner_text))
-        .route("/analyze/text", post(limina::analyze_text))
-        .route("/healthz", get(limina::healthz))
-        .route("/get-version", get(limina::get_version))
-        .route("/metrics", get(limina::metrics))
-        .route("/diagnostics", get(limina::diagnostics))
-        .route("/docs", get(limina::docs))
-        .route("/", get(limina::docs))
         .with_state(state)
 }
 
